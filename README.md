@@ -18,7 +18,9 @@ Vyhledání hry podle parametrů.
 Zobrazení detailů hry.
 Možnost hodnocení her.
 Přehledné uživatelské rozhraní.
+
 3. Funkční požadavky
+   
 Pro návštěvníka
 Prohlížení seznamu her.
 Vyhledávání podle názvu.
@@ -33,6 +35,7 @@ Registrace a přihlášení.
 Přidávání her do oblíbených.
 Hodnocení her.
 Psání recenzí.
+
 Pro administrátora
 Správa her.
 Úprava informací o hrách.
