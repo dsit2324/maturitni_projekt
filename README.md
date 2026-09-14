@@ -536,9 +536,9 @@ Projekt bude navržen tak, aby byl použitelný jako základní helpdesk napří
 
 ---
 
-## Autor
+## Dominik Svoboda
 
-**Maturitní projekt – obor Informační technologie**
+**Maturitní projekt – IT4 - obor Informační technologie**
 
 Školní rok: **2026/2027**
 
