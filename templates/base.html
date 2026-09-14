@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Helpdesk</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f4f7fb; color: #1f2937; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+        .navbar { background: #0f172a; color: white; padding: 15px 0; }
+        .nav-inner { display: flex; justify-content: space-between; align-items: center; max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+        .nav-links { display: flex; gap: 20px; align-items: center; }
+        .nav-links a { color: white; text-decoration: none; font-weight: 600; }
+        .card { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(15,23,42,0.08); padding: 20px; margin-bottom: 20px; }
+        .row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 180px; }
+        .stat-box { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border-radius: 10px; padding: 18px; }
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { border-bottom: 1px solid #dfe6ee; padding: 12px; text-align: left; }
+        .btn { display: inline-block; background: #2563eb; color: white; text-decoration: none; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer; }
+        .btn.secondary { background: #f3f4f6; color: #111827; }
+        .btn.danger { background: #dc2626; }
+        .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+        .alert-success { background: #dcfce7; color: #166534; }
+        .alert-error { background: #fee2e2; color: #991b1b; }
+        form .field { margin-bottom: 16px; }
+        label { display: block; font-weight: 600; margin-bottom: 6px; }
+        input, select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; }
+        .badge { display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+        .badge.new { background: #dbeafe; color: #1d4ed8; }
+        .badge.in_progress { background: #fef3c7; color: #92400e; }
+        .badge.resolved { background: #dcfce7; color: #166534; }
+        .badge.closed { background: #e5e7eb; color: #374151; }
+        .badge.low { background: #e0f2fe; color: #075985; }
+        .badge.high { background: #fef2f2; color: #b91c1c; }
+        .badge.critical { background: #7f1d1d; color: white; }
+        .muted { color: #6b7280; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-inner">
+            <div><strong>IT Helpdesk</strong></div>
+            <div class="nav-links">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'dashboard' %}">Dashboard</a>
+                    <a href="{% url 'ticket_list' %}">Požadavky</a>
+                    <a href="{% url 'create_ticket' %}">Nový požadavek</a>
+                    <a href="{% url 'logout' %}">Odhlásit se</a>
+                {% else %}
+                    <a href="{% url 'login' %}">Přihlásit se</a>
+                    <a href="{% url 'register' %}">Registrovat</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+    </div>
+</body>
+</html>

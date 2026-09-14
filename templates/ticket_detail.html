@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    <h2>{{ ticket.title }}</h2>
+    <p class="muted">Autor: {{ ticket.author.username }} | Kategorie: {{ ticket.category.name|default:'Bez kategorie' }} | Vytvořeno: {{ ticket.created_at|date:'d.m.Y H:i' }}</p>
+    <div class="row">
+        <div class="col"><strong>Stav:</strong> <span class="badge {{ ticket.status }}">{{ ticket.get_status_display }}</span></div>
+        <div class="col"><strong>Priorita:</strong> <span class="badge {{ ticket.priority }}">{{ ticket.get_priority_display }}</span></div>
+        <div class="col"><strong>Přiřazený technik:</strong> {{ ticket.assignee.username|default:'Nejste přiřazen' }}</div>
+    </div>
+    <hr>
+    <p>{{ ticket.description }}</p>
+</div>
+
+<div class="card">
+    <h3>Upravit stav a prioritu</h3>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in status_form %}
+            <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+            </div>
+        {% endfor %}
+        <button type="submit" name="status_submit" class="btn">Uložit změnu</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Komentáře</h3>
+    {% for comment in comments %}
+        <div class="card" style="background: #f8fafc; margin: 10px 0;">
+            <strong>{{ comment.author.username }}</strong>
+            <div class="muted">{{ comment.created_at|date:'d.m.Y H:i' }}</div>
+            <p>{{ comment.content }}</p>
+        </div>
+    {% empty %}
+        <p class="muted">Žádné komentáře.</p>
+    {% endfor %}
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="field">
+            <label for="id_content">Přidat komentář</label>
+            {{ comment_form.content }}
+        </div>
+        <button type="submit" name="comment_submit" class="btn">Přidat komentář</button>
+    </form>
+</div>
+{% endblock %}

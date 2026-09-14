@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<div class="row">
+    <div class="col">
+        <div class="stat-box">
+            <div>Celkem požadavků</div>
+            <h2>{{ total_tickets }}</h2>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-box" style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+            <div>Nové</div>
+            <h2>{{ new_tickets }}</h2>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-box" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <div>Řeší se</div>
+            <h2>{{ in_progress_tickets }}</h2>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-box" style="background: linear-gradient(135deg, #10b981, #059669);">
+            <div>Vyřešené</div>
+            <h2>{{ resolved_tickets }}</h2>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-box" style="background: linear-gradient(135deg, #ef4444, #b91c1c);">
+            <div>Kritické</div>
+            <h2>{{ critical_tickets }}</h2>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>Poslední požadavky</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Název</th>
+                <th>Stav</th>
+                <th>Priorita</th>
+                <th>Autor</th>
+                <th>Datum</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for ticket in recent_tickets %}
+            <tr>
+                <td><a href="{% url 'ticket_detail' ticket.pk %}">{{ ticket.title }}</a></td>
+                <td><span class="badge {{ ticket.status }}">{{ ticket.get_status_display }}</span></td>
+                <td><span class="badge {{ ticket.priority }}">{{ ticket.get_priority_display }}</span></td>
+                <td>{{ ticket.author.username }}</td>
+                <td>{{ ticket.created_at|date:'d.m.Y H:i' }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5">Žádné požadavky</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

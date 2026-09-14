@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 40px auto;">
+    <h2>Přihlášení</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="field">
+            <label for="username">Uživatelské jméno</label>
+            <input type="text" name="username" id="username" required>
+        </div>
+        <div class="field">
+            <label for="password">Heslo</label>
+            <input type="password" name="password" id="password" required>
+        </div>
+        <button type="submit" class="btn">Přihlásit se</button>
+    </form>
+    <p class="muted">Nemáte účet? <a href="{% url 'register' %}">Registrovat</a></p>
+</div>
+{% endblock %}
