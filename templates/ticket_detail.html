@@ -28,6 +28,23 @@
 </div>
 
 <div class="card">
+    <h3>Historie změn</h3>
+    {% for entry in history %}
+        <div class="card" style="background: #f8fafc; margin: 10px 0;">
+            <strong>{{ entry.field_name }}</strong>
+            <div class="muted">{{ entry.created_at|date:'d.m.Y H:i' }}{% if entry.changed_by %} · {{ entry.changed_by.username }}{% endif %}</div>
+            <p>
+                {% if entry.old_value %}Z: {{ entry.old_value }}{% endif %}
+                {% if entry.old_value and entry.new_value %} → {% endif %}
+                {% if entry.new_value %}Na: {{ entry.new_value }}{% endif %}
+            </p>
+        </div>
+    {% empty %}
+        <p class="muted">Žádná historie změn.</p>
+    {% endfor %}
+</div>
+
+<div class="card">
     <h3>Komentáře</h3>
     {% for comment in comments %}
         <div class="card" style="background: #f8fafc; margin: 10px 0;">

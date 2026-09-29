@@ -21,16 +21,22 @@ def dashboard(request):
 
     total = queryset.count()
     new = queryset.filter(status=Ticket.STATUS_NEW).count()
+    accepted = queryset.filter(status=Ticket.STATUS_ACCEPTED).count()
     in_progress = queryset.filter(status=Ticket.STATUS_IN_PROGRESS).count()
+    pending = queryset.filter(status=Ticket.STATUS_PENDING).count()
     resolved = queryset.filter(status=Ticket.STATUS_RESOLVED).count()
+    closed = queryset.filter(status=Ticket.STATUS_CLOSED).count()
     critical = queryset.filter(priority=Ticket.PRIORITY_CRITICAL).count()
     recent = queryset.order_by('-created_at')[:5]
 
     context = {
         'total_tickets': total,
         'new_tickets': new,
+        'accepted_tickets': accepted,
         'in_progress_tickets': in_progress,
+        'pending_tickets': pending,
         'resolved_tickets': resolved,
+        'closed_tickets': closed,
         'critical_tickets': critical,
         'recent_tickets': recent,
     }
@@ -109,6 +115,7 @@ def create_ticket(request):
         if form.is_valid():
             ticket = form.save(commit=False)
             ticket.author = request.user
+            ticket.updated_by = request.user
             ticket.save()
             messages.success(request, 'Požadavek byl vytvořen.')
             return redirect('ticket_detail', pk=ticket.pk)
@@ -126,6 +133,7 @@ def ticket_detail(request, pk):
 
     ticket = get_object_or_404(queryset, pk=pk)
     comments = ticket.comments.select_related('author').all()
+    history = ticket.history.select_related('changed_by').all()
 
     comment_form = CommentForm()
     status_form = TicketStatusForm(instance=ticket)
@@ -145,6 +153,7 @@ def ticket_detail(request, pk):
             status_form = TicketStatusForm(request.POST, instance=ticket)
             if status_form.is_valid():
                 updated_ticket = status_form.save(commit=False)
+                updated_ticket.updated_by = request.user
                 if updated_ticket.status == Ticket.STATUS_RESOLVED and not updated_ticket.resolved_at:
                     updated_ticket.resolved_at = timezone.now()
                 elif updated_ticket.status != Ticket.STATUS_RESOLVED:
@@ -156,6 +165,7 @@ def ticket_detail(request, pk):
     context = {
         'ticket': ticket,
         'comments': comments,
+        'history': history,
         'comment_form': comment_form,
         'status_form': status_form,
     }
@@ -176,6 +186,8 @@ def api_tickets(request):
     serializer = TicketSerializer(data=request.data)
     if serializer.is_valid():
         ticket = serializer.save(author=request.user)
+        ticket.updated_by = request.user
+        ticket.save()
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -202,6 +214,7 @@ def api_ticket_detail(request, pk):
         if request.user.role in {User.ROLE_TECHNICIAN, User.ROLE_ADMIN}:
             if 'status' in request.data or 'priority' in request.data or 'assignee' in request.data:
                 ticket = serializer.save()
+                ticket.updated_by = request.user
                 if ticket.status == Ticket.STATUS_RESOLVED and not ticket.resolved_at:
                     ticket.resolved_at = timezone.now()
                 elif ticket.status != Ticket.STATUS_RESOLVED:
@@ -210,7 +223,9 @@ def api_ticket_detail(request, pk):
                 return Response(TicketSerializer(ticket).data)
 
         if request.user.role == User.ROLE_USER:
-            serializer.save()
+            ticket = serializer.save()
+            ticket.updated_by = request.user
+            ticket.save()
             return Response(TicketSerializer(ticket).data)
 
         return Response({'detail': 'Nemáte oprávnění upravovat tento požadavek.'}, status=status.HTTP_403_FORBIDDEN)

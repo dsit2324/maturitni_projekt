@@ -18,6 +18,12 @@
     </div>
     <div class="col">
         <div class="stat-box" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+            <div>Přijaté</div>
+            <h2>{{ accepted_tickets }}</h2>
+        </div>
+    </div>
+    <div class="col">
+        <div class="stat-box" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
             <div>Řeší se</div>
             <h2>{{ in_progress_tickets }}</h2>
         </div>
@@ -32,6 +38,21 @@
         <div class="stat-box" style="background: linear-gradient(135deg, #ef4444, #b91c1c);">
             <div>Kritické</div>
             <h2>{{ critical_tickets }}</h2>
+        </div>
+    </div>
+</div>
+
+<div class="row" style="margin-top: 20px;">
+    <div class="col">
+        <div class="card">
+            <h3>Čekající</h3>
+            <h2>{{ pending_tickets }}</h2>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h3>Uzavřené</h3>
+            <h2>{{ closed_tickets }}</h2>
         </div>
     </div>
 </div>

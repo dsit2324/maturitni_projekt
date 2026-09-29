@@ -72,6 +72,13 @@ class Ticket(models.Model):
         blank=True,
         related_name='assigned_tickets',
     )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_tickets',
+    )
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_NEW)
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default=PRIORITY_NORMAL)
@@ -84,6 +91,34 @@ class Ticket(models.Model):
 
     def __str__(self):
         return self.title
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            previous = Ticket.objects.filter(pk=self.pk).first()
+            if previous is not None:
+                for field_name in ['status', 'priority', 'assignee', 'updated_by']:
+                    old_value = getattr(previous, field_name)
+                    new_value = getattr(self, field_name)
+
+                    if field_name == 'assignee' and old_value is not None:
+                        old_value = old_value.pk
+                    if field_name == 'updated_by' and old_value is not None:
+                        old_value = old_value.pk
+                    if field_name == 'assignee' and new_value is not None:
+                        new_value = new_value.pk
+                    if field_name == 'updated_by' and new_value is not None:
+                        new_value = new_value.pk
+
+                    if old_value != new_value:
+                        TicketHistory.objects.create(
+                            ticket=self,
+                            changed_by=self.updated_by,
+                            field_name=field_name,
+                            old_value=str(old_value) if old_value is not None else None,
+                            new_value=str(new_value) if new_value is not None else None,
+                        )
+
+        super().save(*args, **kwargs)
 
 
 class Comment(models.Model):
@@ -107,3 +142,24 @@ class TicketSolution(models.Model):
 
     def __str__(self):
         return f'Řešení: {self.ticket}'
+
+
+class TicketHistory(models.Model):
+    ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, related_name='history')
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='ticket_changes',
+    )
+    field_name = models.CharField(max_length=50)
+    old_value = models.TextField(blank=True, null=True)
+    new_value = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.ticket} / {self.field_name}'
