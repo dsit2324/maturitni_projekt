@@ -1,21 +1,32 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="card">
-    <h2>{{ ticket.title }}</h2>
-    <p class="muted">Autor: {{ ticket.author.username }} | Kategorie: {{ ticket.category.name|default:'Bez kategorie' }} | Vytvořeno: {{ ticket.created_at|date:'d.m.Y H:i' }}</p>
-    <div class="row">
-        <div class="col"><strong>Stav:</strong> <span class="badge {{ ticket.status }}">{{ ticket.get_status_display }}</span></div>
-        <div class="col"><strong>Priorita:</strong> <span class="badge {{ ticket.priority }}">{{ ticket.get_priority_display }}</span></div>
-        <div class="col"><strong>Přiřazený technik:</strong> {{ ticket.assignee.username|default:'Nejste přiřazen' }}</div>
+<section class="ticket-header panel">
+    <div>
+        <p class="eyebrow">Detaily požadavku</p>
+        <h2>{{ ticket.title }}</h2>
     </div>
-    <hr>
-    <p>{{ ticket.description }}</p>
+    <div class="meta-row">
+        <span class="badge {{ ticket.status }}">{{ ticket.get_status_display }}</span>
+        <span class="badge {{ ticket.priority }}">{{ ticket.get_priority_display }}</span>
+    </div>
+</section>
+
+<div class="panel">
+    <div class="meta-strip">
+        <span>Autor: {{ ticket.author.username }}</span>
+        <span>Kategorie: {{ ticket.category.name|default:'Bez kategorie' }}</span>
+        <span>Vytvořeno: {{ ticket.created_at|date:'d.m.Y H:i' }}</span>
+        <span>Přiřazený technik: {{ ticket.assignee.username|default:'Není přiřazen' }}</span>
+    </div>
+    <div class="ticket-description">
+        <p>{{ ticket.description }}</p>
+    </div>
 </div>
 
-<div class="card">
+<div class="panel">
     <h3>Upravit stav a prioritu</h3>
-    <form method="post">
+    <form method="post" class="auth-form">
         {% csrf_token %}
         {% for field in status_form %}
             <div class="field">
@@ -27,10 +38,10 @@
     </form>
 </div>
 
-<div class="card">
+<div class="panel">
     <h3>Historie změn</h3>
     {% for entry in history %}
-        <div class="card" style="background: #f8fafc; margin: 10px 0;">
+        <div class="history-item">
             <strong>{{ entry.field_name }}</strong>
             <div class="muted">{{ entry.created_at|date:'d.m.Y H:i' }}{% if entry.changed_by %} · {{ entry.changed_by.username }}{% endif %}</div>
             <p>
@@ -44,10 +55,10 @@
     {% endfor %}
 </div>
 
-<div class="card">
+<div class="panel">
     <h3>Komentáře</h3>
     {% for comment in comments %}
-        <div class="card" style="background: #f8fafc; margin: 10px 0;">
+        <div class="history-item">
             <strong>{{ comment.author.username }}</strong>
             <div class="muted">{{ comment.created_at|date:'d.m.Y H:i' }}</div>
             <p>{{ comment.content }}</p>
@@ -56,7 +67,7 @@
         <p class="muted">Žádné komentáře.</p>
     {% endfor %}
 
-    <form method="post">
+    <form method="post" class="auth-form">
         {% csrf_token %}
         <div class="field">
             <label for="id_content">Přidat komentář</label>

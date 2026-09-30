@@ -1,9 +1,12 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="card" style="max-width: 500px; margin: 40px auto;">
-    <h2>Přihlášení</h2>
-    <form method="post">
+<div class="auth-card">
+    <div class="auth-header">
+        <p class="eyebrow">Vítejte zpět</p>
+        <h2>Přihlášení</h2>
+    </div>
+    <form method="post" class="auth-form">
         {% csrf_token %}
         <div class="field">
             <label for="username">Uživatelské jméno</label>
@@ -13,8 +16,8 @@
             <label for="password">Heslo</label>
             <input type="password" name="password" id="password" required>
         </div>
-        <button type="submit" class="btn">Přihlásit se</button>
+        <button type="submit" class="btn btn-block">Přihlásit se</button>
     </form>
-    <p class="muted">Nemáte účet? <a href="{% url 'register' %}">Registrovat</a></p>
+    <p class="auth-footer">Nemáte účet? <a href="{% url 'register' %}">Registrovat</a></p>
 </div>
 {% endblock %}
