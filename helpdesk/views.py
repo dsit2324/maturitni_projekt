@@ -1,6 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from rest_framework import status
@@ -150,6 +151,8 @@ def ticket_detail(request, pk):
                 messages.success(request, 'Komentář byl přidán.')
                 return redirect('ticket_detail', pk=ticket.pk)
         elif 'status_submit' in request.POST:
+            if request.user.role not in {User.ROLE_TECHNICIAN, User.ROLE_ADMIN}:
+                raise PermissionDenied
             status_form = TicketStatusForm(request.POST, instance=ticket)
             if status_form.is_valid():
                 updated_ticket = status_form.save(commit=False)
@@ -168,6 +171,7 @@ def ticket_detail(request, pk):
         'history': history,
         'comment_form': comment_form,
         'status_form': status_form,
+        'can_manage_ticket': request.user.role in {User.ROLE_TECHNICIAN, User.ROLE_ADMIN},
     }
     return render(request, 'ticket_detail.html', context)
 
@@ -185,7 +189,15 @@ def api_tickets(request):
 
     serializer = TicketSerializer(data=request.data)
     if serializer.is_valid():
-        ticket = serializer.save(author=request.user)
+        if request.user.role == User.ROLE_USER:
+            ticket = serializer.save(
+                author=request.user,
+                status=Ticket.STATUS_NEW,
+                priority=Ticket.PRIORITY_NORMAL,
+                assignee=None,
+            )
+        else:
+            ticket = serializer.save(author=request.user)
         ticket.updated_by = request.user
         ticket.save()
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
@@ -206,28 +218,23 @@ def api_ticket_detail(request, pk):
         return Response(serializer.data)
 
     if request.method == 'DELETE':
+        if request.user.role != User.ROLE_ADMIN:
+            return Response({'detail': 'Nemáte oprávnění smazat tento požadavek.'}, status=status.HTTP_403_FORBIDDEN)
         ticket.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    if request.user.role not in {User.ROLE_TECHNICIAN, User.ROLE_ADMIN}:
+        return Response({'detail': 'Nemáte oprávnění upravovat tento požadavek.'}, status=status.HTTP_403_FORBIDDEN)
+
     serializer = TicketSerializer(ticket, data=request.data, partial=(request.method == 'PATCH'))
     if serializer.is_valid():
-        if request.user.role in {User.ROLE_TECHNICIAN, User.ROLE_ADMIN}:
-            if 'status' in request.data or 'priority' in request.data or 'assignee' in request.data:
-                ticket = serializer.save()
-                ticket.updated_by = request.user
-                if ticket.status == Ticket.STATUS_RESOLVED and not ticket.resolved_at:
-                    ticket.resolved_at = timezone.now()
-                elif ticket.status != Ticket.STATUS_RESOLVED:
-                    ticket.resolved_at = None
-                ticket.save()
-                return Response(TicketSerializer(ticket).data)
-
-        if request.user.role == User.ROLE_USER:
-            ticket = serializer.save()
-            ticket.updated_by = request.user
-            ticket.save()
-            return Response(TicketSerializer(ticket).data)
-
-        return Response({'detail': 'Nemáte oprávnění upravovat tento požadavek.'}, status=status.HTTP_403_FORBIDDEN)
+        ticket = serializer.save()
+        ticket.updated_by = request.user
+        if ticket.status == Ticket.STATUS_RESOLVED and not ticket.resolved_at:
+            ticket.resolved_at = timezone.now()
+        elif ticket.status != Ticket.STATUS_RESOLVED:
+            ticket.resolved_at = None
+        ticket.save()
+        return Response(TicketSerializer(ticket).data)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

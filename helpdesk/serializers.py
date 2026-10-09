@@ -8,7 +8,13 @@ class TicketSerializer(serializers.ModelSerializer):
     assignee = serializers.StringRelatedField(read_only=True)
     category = serializers.StringRelatedField(read_only=True)
     category_id = serializers.PrimaryKeyRelatedField(source='category', queryset=Category.objects.all(), write_only=True, required=False)
-    assignee_id = serializers.PrimaryKeyRelatedField(source='assignee', queryset=User.objects.all(), write_only=True, required=False, allow_null=True)
+    assignee_id = serializers.PrimaryKeyRelatedField(
+        source='assignee',
+        queryset=User.objects.filter(role=User.ROLE_TECHNICIAN),
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = Ticket

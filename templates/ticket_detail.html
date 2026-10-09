@@ -24,19 +24,21 @@
     </div>
 </div>
 
-<div class="panel">
-    <h3>Upravit stav a prioritu</h3>
-    <form method="post" class="auth-form">
-        {% csrf_token %}
-        {% for field in status_form %}
-            <div class="field">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-            </div>
-        {% endfor %}
-        <button type="submit" name="status_submit" class="btn">Uložit změnu</button>
-    </form>
-</div>
+{% if can_manage_ticket %}
+    <div class="panel">
+        <h3>Upravit stav a prioritu</h3>
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            {% for field in status_form %}
+                <div class="field">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                </div>
+            {% endfor %}
+            <button type="submit" name="status_submit" class="btn">Uložit změnu</button>
+        </form>
+    </div>
+{% endif %}
 
 <div class="panel">
     <h3>Historie změn</h3>

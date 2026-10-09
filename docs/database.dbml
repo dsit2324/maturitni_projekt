@@ -1,0 +1,75 @@
+// Core application tables. Django's auth, session, migration, and admin tables are omitted.
+Table helpdesk_user {
+  id bigint [pk, increment]
+  password varchar(128) [not null]
+  last_login datetime
+  is_superuser boolean [not null]
+  username varchar(150) [not null, unique]
+  first_name varchar(150) [not null]
+  last_name varchar(150) [not null]
+  email varchar(254) [not null]
+  is_staff boolean [not null]
+  is_active boolean [not null]
+  date_joined datetime [not null]
+  role varchar(20) [not null]
+  created_at datetime [not null]
+}
+
+Table helpdesk_category {
+  id bigint [pk, increment]
+  name varchar(100) [not null, unique]
+  description text [not null]
+  created_at datetime [not null]
+}
+
+Table helpdesk_ticket {
+  id bigint [pk, increment]
+  title varchar(200) [not null]
+  description text [not null]
+  author_id bigint [not null]
+  assignee_id bigint
+  updated_by_id bigint
+  category_id bigint
+  status varchar(20) [not null]
+  priority varchar(20) [not null]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+  resolved_at datetime
+}
+
+Table helpdesk_comment {
+  id bigint [pk, increment]
+  ticket_id bigint [not null]
+  author_id bigint [not null]
+  content text [not null]
+  created_at datetime [not null]
+}
+
+Table helpdesk_ticketsolution {
+  id bigint [pk, increment]
+  ticket_id bigint [not null, unique]
+  technician_id bigint [not null]
+  content text [not null]
+  created_at datetime [not null]
+}
+
+Table helpdesk_tickethistory {
+  id bigint [pk, increment]
+  ticket_id bigint [not null]
+  changed_by_id bigint
+  field_name varchar(50) [not null]
+  old_value text
+  new_value text
+  created_at datetime [not null]
+}
+
+Ref: helpdesk_ticket.author_id > helpdesk_user.id
+Ref: helpdesk_ticket.assignee_id > helpdesk_user.id
+Ref: helpdesk_ticket.updated_by_id > helpdesk_user.id
+Ref: helpdesk_ticket.category_id > helpdesk_category.id
+Ref: helpdesk_comment.ticket_id > helpdesk_ticket.id
+Ref: helpdesk_comment.author_id > helpdesk_user.id
+Ref: helpdesk_ticketsolution.ticket_id - helpdesk_ticket.id
+Ref: helpdesk_ticketsolution.technician_id > helpdesk_user.id
+Ref: helpdesk_tickethistory.ticket_id > helpdesk_ticket.id
+Ref: helpdesk_tickethistory.changed_by_id > helpdesk_user.id

@@ -20,6 +20,13 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
+    def save(self, *args, **kwargs):
+        if self.is_superuser:
+            self.role = self.ROLE_ADMIN
+        else:
+            self.is_staff = self.role == self.ROLE_ADMIN
+        super().save(*args, **kwargs)
+
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
