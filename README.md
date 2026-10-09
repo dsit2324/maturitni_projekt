@@ -73,6 +73,7 @@ Administrace Django je dostupná na `/admin/`.
 ## Databázový diagram
 
 Databázové schéma ve formátu DBML pro [dbdiagram.io](https://dbdiagram.io/) je v [docs/database.dbml](docs/database.dbml). Diagram zachycuje aplikační tabulky; interní tabulky Django autentizace, relace, migrací a administrace jsou vynechány.
+<img width="1459" height="683" alt="diagram" src="https://github.com/user-attachments/assets/fd215bb3-db64-4b8d-af75-f85c071c0952" />
 
 ## Testy
 
