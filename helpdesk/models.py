@@ -17,14 +17,29 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_USER)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(role__in=['user', 'technician', 'admin']),
+                name='helpdesk_user_role_valid',
+            ),
+        ]
+
+    def clean(self):
+        super().clean()
+        if self.is_superuser:
+            self.role = self.ROLE_ADMIN
+            self.is_staff = True
+        elif self.role == self.ROLE_ADMIN:
+            self.is_staff = True
+        else:
+            self.is_staff = False
+
     def __str__(self):
         return self.username
 
     def save(self, *args, **kwargs):
-        if self.is_superuser:
-            self.role = self.ROLE_ADMIN
-        else:
-            self.is_staff = self.role == self.ROLE_ADMIN
+        self.clean()
         super().save(*args, **kwargs)
 
 
@@ -95,6 +110,16 @@ class Ticket(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=['new', 'accepted', 'in_progress', 'pending', 'resolved', 'closed']),
+                name='helpdesk_ticket_status_valid',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(priority__in=['low', 'normal', 'high', 'critical']),
+                name='helpdesk_ticket_priority_valid',
+            ),
+        ]
 
     def __str__(self):
         return self.title
@@ -167,6 +192,12 @@ class TicketHistory(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(field_name__in=['status', 'priority', 'assignee', 'updated_by', 'category', 'resolved_at']),
+                name='helpdesk_tickethistory_field_name_valid',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.ticket} / {self.field_name}'

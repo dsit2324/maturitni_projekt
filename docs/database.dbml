@@ -1,4 +1,5 @@
 // Core application tables. Django's auth, session, migration, and admin tables are omitted.
+// Business rules are enforced by Django model validation and database CHECK constraints.
 Table helpdesk_user {
   id bigint [pk, increment]
   password varchar(128) [not null]
@@ -11,7 +12,7 @@ Table helpdesk_user {
   is_staff boolean [not null]
   is_active boolean [not null]
   date_joined datetime [not null]
-  role varchar(20) [not null]
+  role varchar(20) [not null, note: 'user | technician | admin (kept consistent with is_staff and is_superuser)']
   created_at datetime [not null]
 }
 
@@ -30,8 +31,8 @@ Table helpdesk_ticket {
   assignee_id bigint
   updated_by_id bigint
   category_id bigint
-  status varchar(20) [not null]
-  priority varchar(20) [not null]
+  status varchar(20) [not null, note: 'new | accepted | in_progress | pending | resolved | closed']
+  priority varchar(20) [not null, note: 'low | normal | high | critical']
   created_at datetime [not null]
   updated_at datetime [not null]
   resolved_at datetime
@@ -57,7 +58,7 @@ Table helpdesk_tickethistory {
   id bigint [pk, increment]
   ticket_id bigint [not null]
   changed_by_id bigint
-  field_name varchar(50) [not null]
+  field_name varchar(50) [not null, note: 'status | priority | assignee | updated_by | category | resolved_at']
   old_value text
   new_value text
   created_at datetime [not null]

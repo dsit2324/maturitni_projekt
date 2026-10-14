@@ -7,6 +7,7 @@ Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní 
 - Registrace a přihlášení; nově registrované účty mají roli uživatele.
 - Uživatel vidí své požadavky a může přidávat komentáře. Technik vidí všechny požadavky a může měnit jejich stav, prioritu a přiřazení.
 - Administrátor může požadavky spravovat a mazat. Role se přidělují v administraci Django; veřejná registrace roli technika ani administrátora nenabízí.
+- Požadavky lze zařadit do kategorií. Při aplikaci migrací se vytvoří kategorie Hardware, Software, Síť a internet, Účty a přístupy, Tiskárny a periferie a Ostatní; další kategorie lze spravovat v administraci Django.
 - Historie změn a komentáře jsou dostupné v detailu požadavku. Záznam řešení lze spravovat v administraci Django.
 - Přehled požadavků a REST API.
 

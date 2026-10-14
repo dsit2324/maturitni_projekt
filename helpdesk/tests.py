@@ -1,3 +1,4 @@
+from django.db import IntegrityError, connection
 from django.test import TestCase
 from django.urls import reverse
 
@@ -10,7 +11,9 @@ class HelpdeskModelTests(TestCase):
         self.assertEqual(user.role, User.ROLE_USER)
 
     def test_ticket_creation_requires_title_and_description(self):
-        category = Category.objects.create(name='Hardware', description='Počítače a periferie')
+        category, _ = Category.objects.get_or_create(
+            name='Hardware', defaults={'description': 'Počítače a periferie'}
+        )
         user = User.objects.create_user(username='autor', password='heslo123')
 
         ticket = Ticket.objects.create(
@@ -24,7 +27,9 @@ class HelpdeskModelTests(TestCase):
         self.assertEqual(ticket.status, Ticket.STATUS_NEW)
 
     def test_ticket_history_is_created_when_status_changes(self):
-        category = Category.objects.create(name='Hardware', description='Počítače a periferie')
+        category, _ = Category.objects.get_or_create(
+            name='Hardware', defaults={'description': 'Počítače a periferie'}
+        )
         user = User.objects.create_user(username='autor', password='heslo123')
         ticket = Ticket.objects.create(
             title='Nefunguje klávesnice',
@@ -42,10 +47,29 @@ class HelpdeskModelTests(TestCase):
         self.assertEqual(history_entry.old_value, Ticket.STATUS_NEW)
         self.assertEqual(history_entry.new_value, Ticket.STATUS_IN_PROGRESS)
 
+    def test_invalid_user_role_is_rejected_by_database(self):
+        with self.assertRaises(IntegrityError):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO helpdesk_user (username, password, email, first_name, last_name, is_superuser, is_staff, is_active, date_joined, role, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, datetime('now'), %s, datetime('now'))",
+                    ('badrole', 'password123', 'bad@example.com', '', '', 0, 0, 1, 'unknown-role'),
+                )
+
+    def test_invalid_ticket_status_and_priority_are_rejected_by_database(self):
+        user = User.objects.create_user(username='autor', password='heslo123')
+        category, _ = Category.objects.get_or_create(
+            name='Hardware', defaults={'description': 'Počítače a periferie'}
+        )
+
+        with self.assertRaises(IntegrityError):
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO helpdesk_ticket (title, description, author_id, category_id, status, priority, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, datetime('now'), datetime('now'))",
+                    ('Neplatný stav', 'Test neplatné hodnoty.', user.id, category.id, 'invalid-status', 'invalid-priority'),
+                )
+
     def test_dashboard_counts_pending_and_closed_tickets(self):
         user = User.objects.create_user(username='adminuser', password='heslo123', role=User.ROLE_ADMIN)
-        Category.objects.create(name='Hardware', description='Počítače a periferie')
-
         Ticket.objects.create(
             title='Pauza 1',
             description='Čekající požadavek',
