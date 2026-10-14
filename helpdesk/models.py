@@ -1,6 +1,14 @@
 from django.conf import settings
-from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.contrib.auth.models import AbstractUser, UserManager
+from django.core.exceptions import ValidationError
+from django.db import models, transaction
+from django.utils import timezone
+
+
+class HelpdeskUserManager(UserManager):
+    def create_superuser(self, username, email=None, password=None, **extra_fields):
+        extra_fields.setdefault('role', 'admin')
+        return super().create_superuser(username, email, password, **extra_fields)
 
 
 class User(AbstractUser):
@@ -15,7 +23,8 @@ class User(AbstractUser):
     ]
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_USER)
-    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = HelpdeskUserManager()
 
     class Meta:
         constraints = [
@@ -27,13 +36,12 @@ class User(AbstractUser):
 
     def clean(self):
         super().clean()
-        if self.is_superuser:
-            self.role = self.ROLE_ADMIN
-            self.is_staff = True
-        elif self.role == self.ROLE_ADMIN:
-            self.is_staff = True
-        else:
-            self.is_staff = False
+        if (
+            self.pk
+            and self.role != self.ROLE_TECHNICIAN
+            and Ticket.objects.filter(assignee_id=self.pk).exists()
+        ):
+            raise ValidationError({'role': 'Před změnou role je nutné přeřadit přiřazené požadavky.'})
 
     def __str__(self):
         return self.username
@@ -84,15 +92,30 @@ class Ticket(models.Model):
         (PRIORITY_CRITICAL, 'Kritická'),
     ]
 
+    STATUS_TRANSITIONS = {
+        STATUS_NEW: {STATUS_ACCEPTED},
+        STATUS_ACCEPTED: {STATUS_IN_PROGRESS, STATUS_PENDING},
+        STATUS_IN_PROGRESS: {STATUS_PENDING, STATUS_RESOLVED},
+        STATUS_PENDING: {STATUS_IN_PROGRESS},
+        STATUS_RESOLVED: {STATUS_CLOSED, STATUS_IN_PROGRESS},
+        STATUS_CLOSED: {STATUS_IN_PROGRESS},
+    }
+
     title = models.CharField(max_length=200)
     description = models.TextField()
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='tickets')
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='tickets',
+        db_index=False,
+    )
     assignee = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='assigned_tickets',
+        db_index=False,
     )
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -110,6 +133,10 @@ class Ticket(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['author', '-created_at'], name='ticket_author_created_idx'),
+            models.Index(fields=['assignee', 'status'], name='ticket_assignee_status_idx'),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(status__in=['new', 'accepted', 'in_progress', 'pending', 'resolved', 'closed']),
@@ -119,48 +146,125 @@ class Ticket(models.Model):
                 condition=models.Q(priority__in=['low', 'normal', 'high', 'critical']),
                 name='helpdesk_ticket_priority_valid',
             ),
+            models.CheckConstraint(
+                condition=models.Q(resolved_at__isnull=True)
+                | models.Q(resolved_at__gte=models.F('created_at')),
+                name='helpdesk_ticket_resolved_at_valid',
+            ),
         ]
 
     def __str__(self):
         return self.title
 
+    def validate_status_transition(self, new_status=None):
+        requested_status = new_status or self.status
+        if self._state.adding or not self.pk:
+            if requested_status != self.STATUS_NEW:
+                raise ValidationError({'status': 'Nový požadavek musí začínat ve stavu Nový.'})
+            return
+
+        previous_status = Ticket.objects.filter(pk=self.pk).values_list('status', flat=True).first()
+        if previous_status is None or previous_status == requested_status:
+            return
+        if requested_status not in self.STATUS_TRANSITIONS.get(previous_status, set()):
+            raise ValidationError({'status': 'Tento přechod stavu není povolen.'})
+
+    def clean(self):
+        super().clean()
+        self.validate_status_transition()
+
+        if self.assignee_id and not User.objects.filter(
+            pk=self.assignee_id,
+            role=User.ROLE_TECHNICIAN,
+        ).exists():
+            raise ValidationError({'assignee': 'Požadavek lze přiřadit pouze technikovi.'})
+
+        if self.resolved_at and self.created_at and self.resolved_at < self.created_at:
+            raise ValidationError({'resolved_at': 'Čas vyřešení nesmí předcházet vytvoření požadavku.'})
+
+        if self.status not in {self.STATUS_RESOLVED, self.STATUS_CLOSED} and self.resolved_at:
+            raise ValidationError({'resolved_at': 'Čas vyřešení je povolen pouze u vyřešeného nebo uzavřeného požadavku.'})
+
+    @transaction.atomic
     def save(self, *args, **kwargs):
-        if self.pk:
-            previous = Ticket.objects.filter(pk=self.pk).first()
-            if previous is not None:
-                for field_name in ['status', 'priority', 'assignee', 'updated_by']:
-                    old_value = getattr(previous, field_name)
-                    new_value = getattr(self, field_name)
+        previous = Ticket.objects.filter(pk=self.pk).first() if self.pk else None
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            update_fields = set(update_fields)
+            if 'status' in update_fields:
+                update_fields.add('resolved_at')
+            kwargs['update_fields'] = update_fields
 
-                    if field_name == 'assignee' and old_value is not None:
-                        old_value = old_value.pk
-                    if field_name == 'updated_by' and old_value is not None:
-                        old_value = old_value.pk
-                    if field_name == 'assignee' and new_value is not None:
-                        new_value = new_value.pk
-                    if field_name == 'updated_by' and new_value is not None:
-                        new_value = new_value.pk
+        if self.status == self.STATUS_RESOLVED:
+            if previous is None or previous.status != self.STATUS_RESOLVED or self.resolved_at is None:
+                self.resolved_at = timezone.now()
+        elif self.status == self.STATUS_CLOSED and previous is not None:
+            self.resolved_at = previous.resolved_at
+        elif (
+            self.status == self.STATUS_IN_PROGRESS
+            and previous is not None
+            and previous.status in {self.STATUS_RESOLVED, self.STATUS_CLOSED}
+        ):
+            self.resolved_at = None
+        else:
+            self.resolved_at = None
 
-                    if old_value != new_value:
-                        TicketHistory.objects.create(
-                            ticket=self,
-                            changed_by=self.updated_by,
-                            field_name=field_name,
-                            old_value=str(old_value) if old_value is not None else None,
-                            new_value=str(new_value) if new_value is not None else None,
-                        )
-
+        self.clean()
         super().save(*args, **kwargs)
+
+        if previous is None:
+            return
+
+        history_fields = (
+            'title',
+            'description',
+            'status',
+            'priority',
+            'assignee',
+            'category',
+            'resolved_at',
+        )
+        for field_name in history_fields:
+            if (
+                update_fields is not None
+                and field_name not in update_fields
+                and f'{field_name}_id' not in update_fields
+            ):
+                continue
+
+            if field_name in {'assignee', 'category'}:
+                old_value = getattr(previous, f'{field_name}_id')
+                new_value = getattr(self, f'{field_name}_id')
+            else:
+                old_value = getattr(previous, field_name)
+                new_value = getattr(self, field_name)
+
+            if old_value != new_value:
+                TicketHistory.objects.create(
+                    ticket=self,
+                    changed_by=self.updated_by,
+                    field_name=field_name,
+                    old_value=str(old_value) if old_value is not None else None,
+                    new_value=str(new_value) if new_value is not None else None,
+                )
 
 
 class Comment(models.Model):
-    ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, related_name='comments')
-    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comments')
+    ticket = models.ForeignKey(
+        'Ticket',
+        on_delete=models.CASCADE,
+        related_name='comments',
+        db_index=False,
+    )
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='comments')
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['ticket', 'created_at'], name='comment_ticket_created_idx'),
+        ]
 
     def __str__(self):
         return f'{self.author} -> {self.ticket}'
@@ -168,7 +272,7 @@ class Comment(models.Model):
 
 class TicketSolution(models.Model):
     ticket = models.OneToOneField('Ticket', on_delete=models.CASCADE, related_name='solution')
-    technician = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='solutions')
+    technician = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='solutions')
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -177,10 +281,15 @@ class TicketSolution(models.Model):
 
 
 class TicketHistory(models.Model):
-    ticket = models.ForeignKey('Ticket', on_delete=models.CASCADE, related_name='history')
+    ticket = models.ForeignKey(
+        'Ticket',
+        on_delete=models.CASCADE,
+        related_name='history',
+        db_index=False,
+    )
     changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='ticket_changes',
@@ -192,9 +301,23 @@ class TicketHistory(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['ticket', '-created_at'], name='history_ticket_created_idx'),
+        ]
         constraints = [
             models.CheckConstraint(
-                condition=models.Q(field_name__in=['status', 'priority', 'assignee', 'updated_by', 'category', 'resolved_at']),
+                condition=models.Q(
+                    field_name__in=[
+                        'title',
+                        'description',
+                        'status',
+                        'priority',
+                        'assignee',
+                        'updated_by',
+                        'category',
+                        'resolved_at',
+                    ]
+                ),
                 name='helpdesk_tickethistory_field_name_valid',
             ),
         ]

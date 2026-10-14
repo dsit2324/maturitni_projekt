@@ -3,7 +3,6 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -157,10 +156,6 @@ def ticket_detail(request, pk):
             if status_form.is_valid():
                 updated_ticket = status_form.save(commit=False)
                 updated_ticket.updated_by = request.user
-                if updated_ticket.status == Ticket.STATUS_RESOLVED and not updated_ticket.resolved_at:
-                    updated_ticket.resolved_at = timezone.now()
-                elif updated_ticket.status != Ticket.STATUS_RESOLVED:
-                    updated_ticket.resolved_at = None
                 updated_ticket.save()
                 messages.success(request, 'Stav požadavku byl upraven.')
                 return redirect('ticket_detail', pk=ticket.pk)
@@ -187,19 +182,18 @@ def api_tickets(request):
         serializer = TicketSerializer(queryset, many=True)
         return Response(serializer.data)
 
-    serializer = TicketSerializer(data=request.data)
+    serializer = TicketSerializer(data=request.data, context={'request': request})
     if serializer.is_valid():
         if request.user.role == User.ROLE_USER:
             ticket = serializer.save(
                 author=request.user,
+                updated_by=request.user,
                 status=Ticket.STATUS_NEW,
                 priority=Ticket.PRIORITY_NORMAL,
                 assignee=None,
             )
         else:
-            ticket = serializer.save(author=request.user)
-        ticket.updated_by = request.user
-        ticket.save()
+            ticket = serializer.save(author=request.user, updated_by=request.user)
         return Response(TicketSerializer(ticket).data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -228,13 +222,7 @@ def api_ticket_detail(request, pk):
 
     serializer = TicketSerializer(ticket, data=request.data, partial=(request.method == 'PATCH'))
     if serializer.is_valid():
-        ticket = serializer.save()
-        ticket.updated_by = request.user
-        if ticket.status == Ticket.STATUS_RESOLVED and not ticket.resolved_at:
-            ticket.resolved_at = timezone.now()
-        elif ticket.status != Ticket.STATUS_RESOLVED:
-            ticket.resolved_at = None
-        ticket.save()
+        ticket = serializer.save(updated_by=request.user)
         return Response(TicketSerializer(ticket).data)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import Category, Ticket, User
@@ -34,3 +35,19 @@ class TicketSerializer(serializers.ModelSerializer):
             'resolved_at',
         )
         read_only_fields = ('id', 'author', 'created_at', 'updated_at', 'resolved_at')
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if (
+            self.instance is None
+            and request is not None
+            and request.user.role == User.ROLE_USER
+        ):
+            return attrs
+
+        ticket = self.instance or Ticket()
+        try:
+            ticket.validate_status_transition(attrs.get('status', ticket.status))
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        return attrs

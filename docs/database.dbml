@@ -1,19 +1,18 @@
 // Core application tables. Django's auth, session, migration, and admin tables are omitted.
-// Business rules are enforced by Django model validation and database CHECK constraints.
+// Application rules are validated by Django; CHECK constraints are enforced by the database.
 Table helpdesk_user {
   id bigint [pk, increment]
   password varchar(128) [not null]
   last_login datetime
-  is_superuser boolean [not null]
+  is_superuser boolean [not null, note: 'Django-wide permission; independent of the helpdesk role']
   username varchar(150) [not null, unique]
   first_name varchar(150) [not null]
   last_name varchar(150) [not null]
   email varchar(254) [not null]
-  is_staff boolean [not null]
+  is_staff boolean [not null, note: 'Access to Django admin; independent of the helpdesk role']
   is_active boolean [not null]
   date_joined datetime [not null]
-  role varchar(20) [not null, note: 'user | technician | admin (kept consistent with is_staff and is_superuser)']
-  created_at datetime [not null]
+  role varchar(20) [not null, note: 'user | technician | admin (helpdesk authorization)']
 }
 
 Table helpdesk_category {
@@ -27,29 +26,38 @@ Table helpdesk_ticket {
   id bigint [pk, increment]
   title varchar(200) [not null]
   description text [not null]
-  author_id bigint [not null]
-  assignee_id bigint
+  author_id bigint [not null, note: 'Protected from physical user deletion']
+  assignee_id bigint [note: 'Validated in Django: must refer to a technician']
   updated_by_id bigint
   category_id bigint
   status varchar(20) [not null, note: 'new | accepted | in_progress | pending | resolved | closed']
   priority varchar(20) [not null, note: 'low | normal | high | critical']
   created_at datetime [not null]
   updated_at datetime [not null]
-  resolved_at datetime
+  resolved_at datetime [note: 'Set on resolution; retained on close and cleared on reopen']
+
+  Indexes {
+    (author_id, created_at) [name: 'ticket_author_created_idx']
+    (assignee_id, status) [name: 'ticket_assignee_status_idx']
+  }
 }
 
 Table helpdesk_comment {
   id bigint [pk, increment]
   ticket_id bigint [not null]
-  author_id bigint [not null]
+  author_id bigint [not null, note: 'Protected from physical user deletion']
   content text [not null]
   created_at datetime [not null]
+
+  Indexes {
+    (ticket_id, created_at) [name: 'comment_ticket_created_idx']
+  }
 }
 
 Table helpdesk_ticketsolution {
   id bigint [pk, increment]
-  ticket_id bigint [not null, unique]
-  technician_id bigint [not null]
+  ticket_id bigint [not null, unique, note: 'At most one current solution per ticket']
+  technician_id bigint [not null, note: 'Protected from physical user deletion']
   content text [not null]
   created_at datetime [not null]
 }
@@ -57,11 +65,15 @@ Table helpdesk_ticketsolution {
 Table helpdesk_tickethistory {
   id bigint [pk, increment]
   ticket_id bigint [not null]
-  changed_by_id bigint
-  field_name varchar(50) [not null, note: 'status | priority | assignee | updated_by | category | resolved_at']
+  changed_by_id bigint [note: 'Protected from physical user deletion when present']
+  field_name varchar(50) [not null, note: 'Current: title | description | status | priority | assignee | category | resolved_at; legacy: updated_by']
   old_value text
   new_value text
   created_at datetime [not null]
+
+  Indexes {
+    (ticket_id, created_at) [name: 'history_ticket_created_idx']
+  }
 }
 
 Ref: helpdesk_ticket.author_id > helpdesk_user.id

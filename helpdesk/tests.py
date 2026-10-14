@@ -1,4 +1,6 @@
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, connection
+from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
 
@@ -9,6 +11,23 @@ class HelpdeskModelTests(TestCase):
     def test_user_role_default_is_user(self):
         user = User.objects.create_user(username='testuser', password='heslo123')
         self.assertEqual(user.role, User.ROLE_USER)
+
+    def test_application_role_is_independent_from_django_staff_flags(self):
+        admin = User.objects.create_user(username='appadmin', password='heslo123', role=User.ROLE_ADMIN)
+        self.assertFalse(admin.is_staff)
+
+        django_staff = User.objects.create_user(
+            username='django-staff',
+            password='heslo123',
+            role=User.ROLE_USER,
+            is_staff=True,
+        )
+        self.assertEqual(django_staff.role, User.ROLE_USER)
+
+        superuser = User.objects.create_superuser(username='superadmin', password='heslo123')
+        self.assertEqual(superuser.role, User.ROLE_ADMIN)
+        self.assertTrue(superuser.is_staff)
+        self.assertTrue(superuser.is_superuser)
 
     def test_ticket_creation_requires_title_and_description(self):
         category, _ = Category.objects.get_or_create(
@@ -38,20 +57,125 @@ class HelpdeskModelTests(TestCase):
             category=category,
         )
 
-        ticket.status = Ticket.STATUS_IN_PROGRESS
+        ticket.status = Ticket.STATUS_ACCEPTED
         ticket.updated_by = user
         ticket.save()
 
         history_entry = TicketHistory.objects.filter(ticket=ticket, field_name='status').first()
         self.assertIsNotNone(history_entry)
         self.assertEqual(history_entry.old_value, Ticket.STATUS_NEW)
-        self.assertEqual(history_entry.new_value, Ticket.STATUS_IN_PROGRESS)
+        self.assertEqual(history_entry.new_value, Ticket.STATUS_ACCEPTED)
+
+    def test_ticket_status_transitions_and_reopening_are_enforced(self):
+        author = User.objects.create_user(username='autor', password='heslo123')
+        ticket = Ticket.objects.create(
+            title='Testovací požadavek',
+            description='Popis požadavku',
+            author=author,
+        )
+
+        ticket.status = Ticket.STATUS_CLOSED
+        with self.assertRaises(ValidationError):
+            ticket.save()
+
+        ticket.status = Ticket.STATUS_ACCEPTED
+        ticket.save()
+        ticket.status = Ticket.STATUS_IN_PROGRESS
+        ticket.save()
+        ticket.status = Ticket.STATUS_RESOLVED
+        ticket.save(update_fields=['status'])
+        ticket.refresh_from_db()
+        resolved_at = ticket.resolved_at
+        self.assertIsNotNone(resolved_at)
+
+        ticket.status = Ticket.STATUS_CLOSED
+        ticket.save()
+        self.assertEqual(ticket.resolved_at, resolved_at)
+        ticket.status = Ticket.STATUS_IN_PROGRESS
+        ticket.save()
+
+        self.assertIsNone(ticket.resolved_at)
+        self.assertEqual(
+            TicketHistory.objects.filter(ticket=ticket, field_name='status').count(),
+            5,
+        )
+        self.assertTrue(
+            TicketHistory.objects.filter(ticket=ticket, field_name='resolved_at').exists()
+        )
+
+    def test_ticket_must_be_assigned_to_a_technician(self):
+        author = User.objects.create_user(username='autor', password='heslo123')
+        ordinary_user = User.objects.create_user(username='bezrole', password='heslo123')
+
+        with self.assertRaises(ValidationError):
+            Ticket.objects.create(
+                title='Testovací požadavek',
+                description='Popis požadavku',
+                author=author,
+                assignee=ordinary_user,
+            )
+
+    def test_assigned_technician_cannot_be_demoted_before_reassignment(self):
+        author = User.objects.create_user(username='autor', password='heslo123')
+        technician = User.objects.create_user(
+            username='technik',
+            password='heslo123',
+            role=User.ROLE_TECHNICIAN,
+        )
+        Ticket.objects.create(
+            title='Testovací požadavek',
+            description='Popis požadavku',
+            author=author,
+            assignee=technician,
+        )
+
+        technician.role = User.ROLE_USER
+        with self.assertRaises(ValidationError):
+            technician.save()
+
+        technician.refresh_from_db()
+        self.assertEqual(technician.role, User.ROLE_TECHNICIAN)
+
+    def test_user_with_ticket_cannot_be_deleted(self):
+        author = User.objects.create_user(username='autor', password='heslo123')
+        ticket = Ticket.objects.create(
+            title='Testovací požadavek',
+            description='Popis požadavku',
+            author=author,
+        )
+
+        with self.assertRaises(ProtectedError):
+            author.delete()
+
+        self.assertTrue(User.objects.filter(pk=author.pk).exists())
+        self.assertTrue(Ticket.objects.filter(pk=ticket.pk).exists())
+
+    def test_user_with_audit_history_cannot_be_deleted(self):
+        author = User.objects.create_user(username='autor', password='heslo123')
+        technician = User.objects.create_user(
+            username='technik',
+            password='heslo123',
+            role=User.ROLE_TECHNICIAN,
+        )
+        ticket = Ticket.objects.create(
+            title='Testovací požadavek',
+            description='Popis požadavku',
+            author=author,
+            updated_by=technician,
+        )
+        ticket.status = Ticket.STATUS_ACCEPTED
+        ticket.save()
+
+        with self.assertRaises(ProtectedError):
+            technician.delete()
+
+        self.assertTrue(TicketHistory.objects.filter(ticket=ticket, changed_by=technician).exists())
 
     def test_invalid_user_role_is_rejected_by_database(self):
         with self.assertRaises(IntegrityError):
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO helpdesk_user (username, password, email, first_name, last_name, is_superuser, is_staff, is_active, date_joined, role, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, datetime('now'), %s, datetime('now'))",
+                    "INSERT INTO helpdesk_user (username, password, email, first_name, last_name, is_superuser, is_staff, is_active, date_joined, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, datetime('now'), %s)",
                     ('badrole', 'password123', 'bad@example.com', '', '', 0, 0, 1, 'unknown-role'),
                 )
 
@@ -70,18 +194,23 @@ class HelpdeskModelTests(TestCase):
 
     def test_dashboard_counts_pending_and_closed_tickets(self):
         user = User.objects.create_user(username='adminuser', password='heslo123', role=User.ROLE_ADMIN)
-        Ticket.objects.create(
-            title='Pauza 1',
-            description='Čekající požadavek',
-            author=user,
-            status=Ticket.STATUS_PENDING,
-        )
-        Ticket.objects.create(
-            title='Pauza 2',
-            description='Uzavřený požadavek',
-            author=user,
-            status=Ticket.STATUS_CLOSED,
-        )
+        pending_ticket = Ticket.objects.create(title='Pauza 1', description='Čekající požadavek', author=user)
+        pending_ticket.status = Ticket.STATUS_ACCEPTED
+        pending_ticket.save()
+        pending_ticket.status = Ticket.STATUS_IN_PROGRESS
+        pending_ticket.save()
+        pending_ticket.status = Ticket.STATUS_PENDING
+        pending_ticket.save()
+
+        closed_ticket = Ticket.objects.create(title='Pauza 2', description='Uzavřený požadavek', author=user)
+        closed_ticket.status = Ticket.STATUS_ACCEPTED
+        closed_ticket.save()
+        closed_ticket.status = Ticket.STATUS_IN_PROGRESS
+        closed_ticket.save()
+        closed_ticket.status = Ticket.STATUS_RESOLVED
+        closed_ticket.save()
+        closed_ticket.status = Ticket.STATUS_CLOSED
+        closed_ticket.save()
 
         self.client.force_login(user)
         response = self.client.get(reverse('dashboard'))
@@ -155,12 +284,24 @@ class RoleAccessTests(TestCase):
         self.client.force_login(self.technician)
         response = self.client.post(
             reverse('ticket_detail', args=[self.ticket.pk]),
-            {'status_submit': '1', 'status': Ticket.STATUS_IN_PROGRESS, 'priority': Ticket.PRIORITY_NORMAL},
+            {'status_submit': '1', 'status': Ticket.STATUS_ACCEPTED, 'priority': Ticket.PRIORITY_NORMAL},
         )
 
         self.assertEqual(response.status_code, 302)
         self.ticket.refresh_from_db()
-        self.assertEqual(self.ticket.status, Ticket.STATUS_IN_PROGRESS)
+        self.assertEqual(self.ticket.status, Ticket.STATUS_ACCEPTED)
+
+    def test_api_rejects_invalid_ticket_status_transition(self):
+        self.client.force_login(self.technician)
+        response = self.client.patch(
+            reverse('api_ticket_detail', args=[self.ticket.pk]),
+            {'status': Ticket.STATUS_CLOSED},
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.ticket.refresh_from_db()
+        self.assertEqual(self.ticket.status, Ticket.STATUS_NEW)
 
     def test_api_users_cannot_update_or_delete_tickets(self):
         self.client.force_login(self.user)
