@@ -184,8 +184,6 @@ Databázové schéma ve formátu DBML pro [dbdiagram.io](https://dbdiagram.io/) 
 
 Datový slovník, kardinality, pravidla životního cyklu, mazání a integritní omezení popisuje [docs/database-design.md](docs/database-design.md).
 
-<img width="1919" height="840" alt="Untitled" src="https://github.com/user-attachments/assets/6ac8df5d-0e2f-4f8d-878e-34e041331f23" />
-
 ## Testy
 
 ```bash
