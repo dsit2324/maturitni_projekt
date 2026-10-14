@@ -126,6 +126,58 @@ flowchart LR
     djangoAdmin --> manageSolutions
 ```
 
+## Architektura aplikace
+
+Uživatelé pracují s helpdeskem přes webové rozhraní, přihlášení klienti mohou
+využít také REST API a správci Django mají samostatné administrační rozhraní.
+Všechny cesty používají společné modely a pravidla aplikace; data se ukládají
+do SQLite.
+
+```mermaid
+flowchart LR
+    user["Uživatel, technik nebo administrátor"]
+    apiClient["Klient REST API"]
+    djangoAdmin["Správce Django"]
+
+    subgraph app["Django aplikace"]
+        web["Webové rozhraní<br/>pohledy, formuláře a šablony"]
+        api["REST API<br/>pohledy a serializéry"]
+        admin["Django administrace"]
+        domain["Modely a pravidla<br/>oprávnění, validace, historie"]
+    end
+
+    db[("SQLite")]
+
+    user --> web
+    apiClient --> api
+    djangoAdmin --> admin
+    web --> domain
+    api --> domain
+    admin --> domain
+    domain --> db
+```
+
+## Životní cyklus požadavku
+
+Stavy a povolené přechody odpovídají validaci v aplikaci. Technik může
+požadavek vyřešit nebo jej dát do čekání; vyřešený či uzavřený požadavek lze
+znovu otevřít. Při opětovném otevření se smaže čas vyřešení a při dalším
+vyřešení se nastaví nový.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Novy: vytvoření
+    Novy --> Prijaty
+    Prijaty --> ResiSe
+    Prijaty --> CekaSe
+    ResiSe --> CekaSe
+    CekaSe --> ResiSe
+    ResiSe --> Vyreseny
+    Vyreseny --> Uzavreny
+    Vyreseny --> ResiSe: znovu otevřít
+    Uzavreny --> ResiSe: znovu otevřít
+```
+
 ## Databázový diagram
 
 Databázové schéma ve formátu DBML pro [dbdiagram.io](https://dbdiagram.io/) je v [docs/database.dbml](docs/database.dbml). Diagram zachycuje aplikační tabulky; interní tabulky Django autentizace, relace, migrací a administrace jsou vynechány.
