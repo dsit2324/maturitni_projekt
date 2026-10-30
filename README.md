@@ -1,6 +1,6 @@
 # IT Helpdesk
 
-Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní práce oboru Informační technologie a používá Django, Django REST Framework a SQLite.
+Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní práce oboru Informační technologie a používá Django, Django REST Framework a PostgreSQL.
 
 ## Funkce
 
@@ -20,7 +20,9 @@ Je potřeba Docker s Docker Compose.
 docker compose up --build
 ```
 
-Při startu se automaticky provedou databázové migrace. Aplikace poběží na <http://localhost:8000/>. Databáze SQLite je uložena v pojmenovaném svazku `helpdesk_data`, takže data zůstanou zachována i po zastavení kontejneru.
+Při startu se automaticky provedou databázové migrace. Aplikace poběží na <http://localhost:8000/>. PostgreSQL data jsou uložena v pojmenovaném svazku `postgres_data`, takže zůstanou zachována i po zastavení kontejnerů. Výchozí přihlašovací údaje v Compose jsou určeny pouze pro lokální vývoj; pro jiné prostředí je nastavte pomocí proměnných `POSTGRES_DB`, `POSTGRES_USER` a `POSTGRES_PASSWORD`.
+
+Přechod ze SQLite databáze není automatický. Po prvním spuštění PostgreSQL vytvoří migrace nové schéma, ale data ze souboru `db.sqlite3` se nepřenesou.
 
 Migrace také převedou dosavadní účty bez příznaku administrátora na roli uživatele, aby zneužitelná role z dřívější veřejné registrace nezůstala aktivní. Ověřené techniky je potřeba následně znovu nastavit v administraci Django.
 
@@ -46,7 +48,7 @@ Docker konfigurace je určena pro lokální vývoj. Django development server ne
 
 ## Spuštění bez Dockeru
 
-Je potřeba Python 3.12 nebo novější.
+Je potřeba Python 3.12 nebo novější a dostupný PostgreSQL server. Výchozí připojení očekává databázi `helpdesk`, uživatele `helpdesk`, heslo `helpdesk_dev` a server na `localhost:5432`. Hodnoty lze změnit proměnnými prostředí `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` a `POSTGRES_PORT`.
 
 ```bash
 python -m venv .venv
@@ -131,7 +133,7 @@ flowchart LR
 Uživatelé pracují s helpdeskem přes webové rozhraní, přihlášení klienti mohou
 využít také REST API a správci Django mají samostatné administrační rozhraní.
 Všechny cesty používají společné modely a pravidla aplikace; data se ukládají
-do SQLite.
+do PostgreSQL.
 
 ```mermaid
 flowchart LR
@@ -146,7 +148,7 @@ flowchart LR
         domain["Modely a pravidla<br/>oprávnění, validace, historie"]
     end
 
-    db[("SQLite")]
+    db[("PostgreSQL")]
 
     user --> web
     apiClient --> api
