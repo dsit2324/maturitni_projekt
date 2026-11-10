@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 
+{% block title %}{{ ticket.title }} | IT Helpdesk{% endblock %}
+
 {% block content %}
 <section class="ticket-header panel">
     <div>
@@ -29,10 +31,14 @@
         <h3>Upravit stav a prioritu</h3>
         <form method="post" class="auth-form">
             {% csrf_token %}
+            {{ status_form.non_field_errors }}
             {% for field in status_form %}
                 <div class="field">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
+                    {% if field.errors %}
+                        <div class="form-error">{{ field.errors|join:', ' }}</div>
+                    {% endif %}
                 </div>
             {% endfor %}
             <button type="submit" name="status_submit" class="btn">Uložit změnu</button>
@@ -71,9 +77,13 @@
 
     <form method="post" class="auth-form">
         {% csrf_token %}
+        {{ comment_form.non_field_errors }}
         <div class="field">
             <label for="id_content">Přidat komentář</label>
             {{ comment_form.content }}
+            {% if comment_form.content.errors %}
+                <div class="form-error">{{ comment_form.content.errors|join:', ' }}</div>
+            {% endif %}
         </div>
         <button type="submit" name="comment_submit" class="btn">Přidat komentář</button>
     </form>

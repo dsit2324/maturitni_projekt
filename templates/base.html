@@ -4,22 +4,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IT Helpdesk</title>
+    <title>{% block title %}IT Helpdesk{% endblock %}</title>
     <link rel="stylesheet" href="{% static 'css/styles.css' %}">
 </head>
 <body>
-    <nav class="navbar">
+    <a class="skip-link" href="#main-content">Přeskočit na obsah</a>
+    <nav class="navbar" aria-label="Hlavní navigace">
         <div class="nav-inner">
-            <div class="brand-block">
+            <a class="brand-block" href="{% url 'dashboard' %}" aria-label="IT Helpdesk – úvod">
                 <span class="brand-mark">IT</span>
                 <span>Helpdesk</span>
-            </div>
+            </a>
             <div class="nav-links">
                 {% if user.is_authenticated %}
                     <a href="{% url 'dashboard' %}">Dashboard</a>
                     <a href="{% url 'ticket_list' %}">Požadavky</a>
                     <a href="{% url 'create_ticket' %}">Nový požadavek</a>
-                    <a href="{% url 'logout' %}" class="nav-logout">Odhlásit se</a>
+                    <form action="{% url 'logout' %}" method="post" class="nav-logout-form">
+                        {% csrf_token %}
+                        <button type="submit" class="nav-logout">Odhlásit se</button>
+                    </form>
                 {% else %}
                     <a href="{% url 'login' %}">Přihlásit se</a>
                     <a href="{% url 'register' %}" class="btn btn-nav">Registrovat</a>
@@ -28,10 +32,10 @@
         </div>
     </nav>
 
-    <main class="container">
+    <main class="container" id="main-content">
         {% if messages %}
             {% for message in messages %}
-                <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+                <div class="alert alert-{{ message.tags }}" role="status" aria-live="polite">{{ message }}</div>
             {% endfor %}
         {% endif %}
 

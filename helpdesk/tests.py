@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, connection
+from django.db import IntegrityError
 from django.db.models.deletion import ProtectedError
 from django.test import TestCase
 from django.urls import reverse
@@ -173,11 +173,9 @@ class HelpdeskModelTests(TestCase):
 
     def test_invalid_user_role_is_rejected_by_database(self):
         with self.assertRaises(IntegrityError):
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO helpdesk_user (username, password, email, first_name, last_name, is_superuser, is_staff, is_active, date_joined, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, datetime('now'), %s)",
-                    ('badrole', 'password123', 'bad@example.com', '', '', 0, 0, 1, 'unknown-role'),
-                )
+            User.objects.bulk_create(
+                [User(username='badrole', password='password123', role='unknown-role')]
+            )
 
     def test_invalid_ticket_status_and_priority_are_rejected_by_database(self):
         user = User.objects.create_user(username='autor', password='heslo123')
@@ -186,11 +184,18 @@ class HelpdeskModelTests(TestCase):
         )
 
         with self.assertRaises(IntegrityError):
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "INSERT INTO helpdesk_ticket (title, description, author_id, category_id, status, priority, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, datetime('now'), datetime('now'))",
-                    ('Neplatný stav', 'Test neplatné hodnoty.', user.id, category.id, 'invalid-status', 'invalid-priority'),
-                )
+            Ticket.objects.bulk_create(
+                [
+                    Ticket(
+                        title='Neplatný stav',
+                        description='Test neplatné hodnoty.',
+                        author=user,
+                        category=category,
+                        status='invalid-status',
+                        priority='invalid-priority',
+                    )
+                ]
+            )
 
     def test_dashboard_counts_pending_and_closed_tickets(self):
         user = User.objects.create_user(username='adminuser', password='heslo123', role=User.ROLE_ADMIN)
@@ -247,6 +252,53 @@ class RoleAccessTests(TestCase):
         registered_user = User.objects.get(username='novy')
         self.assertEqual(registered_user.role, User.ROLE_USER)
         self.assertFalse(registered_user.is_staff)
+
+    def test_login_redirects_to_safe_next_url_and_ignores_external_urls(self):
+        response = self.client.post(
+            f"{reverse('login')}?next={reverse('ticket_list')}",
+            {'username': self.user.username, 'password': 'heslo123', 'next': reverse('ticket_list')},
+        )
+        self.assertRedirects(response, reverse('ticket_list'))
+
+        self.client.logout()
+        response = self.client.post(
+            reverse('login'),
+            {'username': self.user.username, 'password': 'heslo123', 'next': 'https://example.com'},
+        )
+        self.assertRedirects(response, reverse('dashboard'))
+
+    def test_logout_requires_post(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('logout'))
+        self.assertEqual(response.status_code, 405)
+        self.assertTrue(response.wsgi_request.user.is_authenticated)
+
+        response = self.client.post(reverse('logout'))
+        self.assertRedirects(response, reverse('login'))
+
+    def test_invalid_comment_error_is_visible(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('ticket_detail', args=[self.ticket.pk]),
+            {'comment_submit': '1', 'content': ''},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'form-error')
+        self.assertTrue(response.context['comment_form'].has_error('content'))
+
+    def test_invalid_status_transition_error_is_visible(self):
+        self.client.force_login(self.technician)
+
+        response = self.client.post(
+            reverse('ticket_detail', args=[self.ticket.pk]),
+            {'status_submit': '1', 'status': Ticket.STATUS_CLOSED, 'priority': Ticket.PRIORITY_NORMAL},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Tento přechod stavu není povolen.')
 
     def test_regular_user_cannot_set_managed_fields_when_creating_ticket_via_api(self):
         self.client.force_login(self.user)

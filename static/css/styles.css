@@ -26,9 +26,36 @@ html {
 
 body {
     margin: 0;
+    min-height: 100vh;
     font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
     background: radial-gradient(circle at top, #111827 0%, var(--bg) 45%, #050a12 100%);
     color: var(--ink);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 3px solid #fde68a;
+    outline-offset: 3px;
+}
+
+.skip-link {
+    position: absolute;
+    z-index: 20;
+    top: 0.75rem;
+    left: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 0.6rem;
+    background: var(--primary);
+    color: #111827;
+    font-weight: 800;
+    transform: translateY(-160%);
+}
+
+.skip-link:focus {
+    transform: translateY(0);
 }
 
 img {
@@ -76,6 +103,10 @@ textarea {
     letter-spacing: 0.04em;
 }
 
+.brand-block:hover {
+    color: #fff;
+}
+
 .brand-mark {
     display: inline-flex;
     align-items: center;
@@ -107,8 +138,22 @@ textarea {
     color: var(--primary);
 }
 
+.nav-logout-form {
+    margin: 0;
+}
+
 .nav-logout {
-    color: #fde68a !important;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #fde68a;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.nav-logout:hover {
+    color: var(--primary);
 }
 
 .container {
@@ -272,6 +317,13 @@ h3 {
 .ticket-link {
     color: var(--primary);
     font-weight: 700;
+}
+
+.ticket-link,
+.meta-strip span,
+.history-item p,
+.ticket-description {
+    overflow-wrap: anywhere;
 }
 
 .badge {
@@ -438,6 +490,23 @@ textarea {
     font-size: 0.85rem;
 }
 
+.help-text {
+    margin-top: 0.4rem;
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.errorlist {
+    margin: 0 0 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    border-radius: 0.75rem;
+    background: rgba(248, 113, 113, 0.1);
+    color: #fecaca;
+    list-style-position: inside;
+}
+
 .meta-row,
 .meta-strip {
     display: flex;
@@ -506,10 +575,17 @@ textarea {
 
     .nav-links {
         width: 100%;
+        gap: 0.8rem;
     }
 
     .container {
         padding-top: 1.2rem;
+    }
+
+    .panel,
+    .page-header,
+    .auth-card {
+        padding: 1.15rem;
     }
 
     .mini-grid {
@@ -517,3 +593,13 @@ textarea {
     }
 }
 
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
