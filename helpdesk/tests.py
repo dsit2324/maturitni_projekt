@@ -29,6 +29,13 @@ class HelpdeskModelTests(TestCase):
         self.assertTrue(superuser.is_staff)
         self.assertTrue(superuser.is_superuser)
 
+    def test_password_is_hashed_when_saved_directly(self):
+        user = User(username='raw_password_user', password='heslo123')
+        user.save()
+
+        self.assertNotEqual(user.password, 'heslo123')
+        self.assertTrue(user.check_password('heslo123'))
+
     def test_ticket_creation_requires_title_and_description(self):
         category, _ = Category.objects.get_or_create(
             name='Hardware', defaults={'description': 'Počítače a periferie'}

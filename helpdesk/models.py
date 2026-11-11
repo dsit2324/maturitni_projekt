@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth.hashers import identify_hasher, make_password
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -48,6 +49,11 @@ class User(AbstractUser):
 
     def save(self, *args, **kwargs):
         self.clean()
+        if self.password:
+            try:
+                identify_hasher(self.password)
+            except ValueError:
+                self.password = make_password(self.password)
         super().save(*args, **kwargs)
 
 
