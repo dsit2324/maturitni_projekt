@@ -1,10 +1,25 @@
+import tempfile
+from datetime import timedelta
+
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core import mail
 from django.db import IntegrityError
 from django.db.models.deletion import ProtectedError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from .models import Category, Ticket, TicketHistory, User
+from .models import (
+    Category,
+    Comment,
+    KnowledgeArticle,
+    Notification,
+    Ticket,
+    TicketAttachment,
+    TicketFeedback,
+    TicketHistory,
+    User,
+)
 
 
 class HelpdeskModelTests(TestCase):
@@ -382,3 +397,167 @@ class RoleAccessTests(TestCase):
         self.client.force_login(self.admin)
         self.assertEqual(self.client.delete(detail_url).status_code, 204)
         self.assertFalse(Ticket.objects.filter(pk=self.ticket.pk).exists())
+
+    def test_internal_comments_are_hidden_from_users_and_user_cannot_create_them(self):
+        Comment.objects.create(
+            ticket=self.ticket,
+            author=self.technician,
+            content='Interní informace',
+            is_internal=True,
+        )
+        self.client.force_login(self.technician)
+        self.client.post(
+            reverse('ticket_detail', args=[self.ticket.pk]),
+            {
+                'comment_submit': '1',
+                'content': 'Interní poznámka přes formulář',
+                'is_internal': 'on',
+            },
+        )
+        self.assertTrue(
+            Comment.objects.get(content='Interní poznámka přes formulář').is_internal
+        )
+        self.ticket.refresh_from_db()
+        self.assertIsNone(self.ticket.first_response_at)
+        self.client.post(
+            reverse('ticket_detail', args=[self.ticket.pk]),
+            {'comment_submit': '1', 'content': 'Veřejná odpověď technika'},
+        )
+        self.ticket.refresh_from_db()
+        self.assertIsNotNone(self.ticket.first_response_at)
+
+        self.client.force_login(self.user)
+        response = self.client.get(reverse('ticket_detail', args=[self.ticket.pk]))
+        self.assertNotContains(response, 'Interní informace')
+        self.assertNotContains(response, 'Interní poznámka přes formulář')
+        self.client.post(
+            reverse('ticket_detail', args=[self.ticket.pk]),
+            {'comment_submit': '1', 'content': 'Pokus o skrytý komentář', 'is_internal': 'on'},
+        )
+        user_comment = Comment.objects.get(content='Pokus o skrytý komentář')
+        self.assertFalse(user_comment.is_internal)
+
+        self.client.force_login(self.technician)
+        response = self.client.get(reverse('ticket_detail', args=[self.ticket.pk]))
+        self.assertContains(response, 'Interní informace')
+
+    def test_ticket_sla_deadlines_follow_priority(self):
+        self.ticket.priority = Ticket.PRIORITY_HIGH
+        self.ticket.save()
+
+        self.assertEqual(
+            self.ticket.resolution_due_at - self.ticket.first_response_due_at,
+            timedelta(hours=20),
+        )
+
+    def test_ticket_search_supports_ticket_number_and_pagination(self):
+        for index in range(21):
+            Ticket.objects.create(
+                title=f'Další požadavek {index}',
+                description='Testovací popis',
+                author=self.user,
+            )
+        self.client.force_login(self.user)
+
+        second_page = self.client.get(reverse('ticket_list'), {'page': 2})
+        self.assertEqual(len(second_page.context['tickets']), 2)
+
+        by_number = self.client.get(reverse('ticket_list'), {'q': str(self.ticket.pk)})
+        self.assertEqual(list(by_number.context['tickets']), [self.ticket])
+
+    def test_attachment_upload_and_download_are_ticket_authorized(self):
+        with tempfile.TemporaryDirectory() as media_dir, override_settings(MEDIA_ROOT=media_dir):
+            self.client.force_login(self.user)
+            response = self.client.post(
+                reverse('ticket_detail', args=[self.ticket.pk]),
+                {
+                    'attachment_submit': '1',
+                    'file': SimpleUploadedFile('error.txt', b'error details', content_type='text/plain'),
+                },
+            )
+            self.assertEqual(response.status_code, 302)
+            attachment = TicketAttachment.objects.get(ticket=self.ticket)
+
+            download = self.client.get(reverse('attachment_download', args=[attachment.pk]))
+            self.assertEqual(download.status_code, 200)
+            self.assertIn('error.txt', download['Content-Disposition'])
+
+            other_user = User.objects.create_user(username='jiny', password='heslo123')
+            self.client.force_login(other_user)
+            denied = self.client.get(reverse('attachment_download', args=[attachment.pk]))
+            self.assertEqual(denied.status_code, 404)
+
+            self.client.force_login(self.user)
+            invalid_upload = self.client.post(
+                reverse('ticket_detail', args=[self.ticket.pk]),
+                {
+                    'attachment_submit': '1',
+                    'file': SimpleUploadedFile('malware.exe', b'not executable', content_type='application/octet-stream'),
+                },
+            )
+            self.assertEqual(invalid_upload.status_code, 200)
+            self.assertEqual(TicketAttachment.objects.filter(ticket=self.ticket).count(), 1)
+
+    def test_feedback_requires_resolved_ticket_and_is_stored(self):
+        self.ticket.status = Ticket.STATUS_ACCEPTED
+        self.ticket.save()
+        self.ticket.status = Ticket.STATUS_IN_PROGRESS
+        self.ticket.save()
+        self.ticket.status = Ticket.STATUS_RESOLVED
+        self.ticket.save()
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('ticket_detail', args=[self.ticket.pk]),
+            {'feedback_submit': '1', 'rating': '5', 'comment': 'Rychlé vyřešení'},
+        )
+        self.assertEqual(response.status_code, 302)
+        feedback = TicketFeedback.objects.get(ticket=self.ticket)
+        self.assertEqual(feedback.rating, 5)
+        self.assertEqual(feedback.comment, 'Rychlé vyřešení')
+
+    def test_knowledge_base_only_lists_published_articles_for_users(self):
+        published = KnowledgeArticle.objects.create(
+            title='Reset hesla',
+            slug='reset-hesla',
+            content='Postup resetu.',
+            created_by=self.admin,
+            is_published=True,
+        )
+        unpublished = KnowledgeArticle.objects.create(
+            title='Interní návod',
+            slug='interni-navod',
+            content='Pouze pro techniky.',
+            created_by=self.admin,
+        )
+        self.client.force_login(self.user)
+
+        listing = self.client.get(reverse('knowledge_base'))
+        self.assertContains(listing, published.title)
+        self.assertNotContains(listing, unpublished.title)
+        self.assertEqual(
+            self.client.get(
+                reverse('knowledge_article_detail', args=[unpublished.slug])
+            ).status_code,
+            404,
+        )
+
+    def test_ticket_status_change_creates_an_in_app_notification(self):
+        self.client.force_login(self.technician)
+        self.user.email = 'user@example.com'
+        self.user.save(update_fields=['email'])
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            response = self.client.post(
+                reverse('ticket_detail', args=[self.ticket.pk]),
+                {'status_submit': '1', 'status': Ticket.STATUS_ACCEPTED, 'priority': Ticket.PRIORITY_NORMAL},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.user,
+                ticket=self.ticket,
+                message__contains='Přijatý',
+            ).exists()
+        )
+        self.assertEqual(len(mail.outbox), 1)

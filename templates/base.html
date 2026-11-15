@@ -19,6 +19,8 @@
                 {% if user.is_authenticated %}
                     <a href="{% url 'dashboard' %}">Dashboard</a>
                     <a href="{% url 'ticket_list' %}">Požadavky</a>
+                    <a href="{% url 'knowledge_base' %}">Znalostní báze</a>
+                    <a href="{% url 'notifications' %}">Upozornění{% if unread_notification_count %} ({{ unread_notification_count }}){% endif %}</a>
                     <a href="{% url 'create_ticket' %}">Nový požadavek</a>
                     <form action="{% url 'logout' %}" method="post" class="nav-logout-form">
                         {% csrf_token %}

@@ -271,6 +271,29 @@ h3 {
     color: var(--ink);
 }
 
+.mini-panel-danger .mini-panel-value,
+.sla-overdue {
+    color: var(--danger);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+    color: var(--muted);
+}
+
+.notification-unread {
+    border-color: rgba(250, 204, 21, 0.55);
+}
+
+.article-content {
+    line-height: 1.8;
+}
+
 .panel {
     border-radius: var(--radius);
     padding: 1.45rem 1.5rem;

@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Aktuality</p>
+        <h1>Upozornění</h1>
+    </div>
+    <form method="post" action="{% url 'mark_notifications_read' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary">Označit vše jako přečtené</button>
+    </form>
+</section>
+
+<section class="panel">
+    {% for notification in notifications %}
+        <div class="history-item{% if not notification.read_at %} notification-unread{% endif %}">
+            <a href="{% url 'ticket_detail' notification.ticket_id %}">{{ notification.message }}</a>
+            <div class="muted">{{ notification.ticket.title }} · {{ notification.created_at|date:'d.m.Y H:i' }}</div>
+            {% if not notification.read_at %}<strong class="sla-overdue">Nepřečtené</strong>{% endif %}
+        </div>
+    {% empty %}
+        <p class="muted">Nemáte žádná upozornění.</p>
+    {% endfor %}
+</section>
+{% endblock %}

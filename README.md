@@ -8,7 +8,12 @@ Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní 
 - Uživatel vidí své požadavky a může přidávat komentáře. Technik vidí všechny požadavky a může měnit jejich stav, prioritu a přiřazení.
 - Administrátor může požadavky spravovat a mazat. Aplikační role jsou oddělené od příznaků `is_staff` a `is_superuser` v Django; přístup do administrace určuje `is_staff`. Role se přidělují v administraci Django a veřejná registrace roli technika ani administrátora nenabízí.
 - Požadavky lze zařadit do kategorií. Při aplikaci migrací se vytvoří kategorie Hardware, Software, Síť a internet, Účty a přístupy, Tiskárny a periferie a Ostatní; další kategorie lze spravovat v administraci Django.
-- Historie změn a komentáře jsou dostupné v detailu požadavku. Záznam řešení lze spravovat v administraci Django.
+- Historie změn, veřejné komentáře a interní poznámky techniků jsou dostupné v detailu požadavku. Přílohy lze stáhnout pouze po ověření přístupu k požadavku.
+- SLA stanovuje termín první reakce a vyřešení podle priority; dashboard upozorňuje na překročené termíny. Časy se počítají v kalendářních hodinách a při čekání se zatím nepozastavují.
+- Uživatelé i technici dostávají aplikační upozornění a e-mail při důležitých událostech. Ve výchozím lokálním nastavení se e-maily vypisují do konzole; SMTP lze nastavit proměnnými prostředí `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` a `SITE_URL`.
+- Uživatel může ohodnotit vyřešený požadavek. Znalostní bázi lze spravovat v administraci Django; uživatelé vidí pouze publikované články.
+- Seznam požadavků podporuje vyhledávání podle názvu, popisu nebo čísla, filtrování a stránkování.
+- Záznam řešení lze spravovat v administraci Django.
 - Stav požadavku prochází definovaným životním cyklem; vyřešený nebo uzavřený požadavek lze znovu otevřít. Uživatelské účty s navázanými požadavky se deaktivují místo fyzického mazání.
 - Přehled požadavků a REST API.
 
@@ -70,7 +75,9 @@ Při spuštění v jiném prostředí nezapomeňte provést `python manage.py mi
 | `GET`, `POST` | `/api/tickets/` | Seznam a vytvoření požadavků |
 | `GET`, `PUT`, `PATCH`, `DELETE` | `/api/tickets/<id>/` | Zobrazení a úprava požadavku |
 
-Administrace Django je dostupná na `/admin/`.
+Administrace Django je dostupná na `/admin/`. Články znalostní báze a záznamy řešení se spravují právě tam.
+
+Přílohy jsou omezené na 5 MB a typy PDF, JPG, PNG a TXT. V Docker Compose se soubory uchovávají v pojmenovaném svazku `helpdesk_media`.
 
 Úpravy přes API odpovídají rolím: běžný uživatel může vytvářet požadavky, ale nemůže měnit jejich stav ani je mazat; mazání je vyhrazené administrátorovi.
 

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Samoobsluha</p>
+        <h1>Znalostní báze</h1>
+    </div>
+</section>
+
+<section class="panel">
+    <form method="get" class="filter-form">
+        <div class="field">
+            <label for="q">Hledat článek</label>
+            <input type="search" name="q" id="q" value="{{ search_query }}" placeholder="Název nebo text článku">
+        </div>
+        <button type="submit" class="btn">Hledat</button>
+    </form>
+</section>
+
+<section class="panel">
+    {% for article in articles %}
+        <div class="history-item">
+            <h2><a href="{% url 'knowledge_article_detail' article.slug %}">{{ article.title }}</a></h2>
+            {% if article.category %}<div class="muted">{{ article.category.name }}</div>{% endif %}
+            <p>{{ article.content|truncatechars:240 }}</p>
+        </div>
+    {% empty %}
+        <p class="muted">Žádné publikované články nebyly nalezeny.</p>
+    {% endfor %}
+</section>
+{% endblock %}

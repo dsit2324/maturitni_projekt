@@ -11,6 +11,10 @@
 
 <div class="panel filter-panel">
     <form method="get" class="filter-form">
+        <div class="field">
+            <label for="q">Vyhledávání</label>
+            <input type="search" name="q" id="q" value="{{ search_query }}" placeholder="Název, popis nebo číslo požadavku">
+        </div>
         <div class="row">
             <div class="col">
                 <label for="status">Stav</label>
@@ -39,6 +43,17 @@
                     {% endfor %}
                 </select>
             </div>
+            {% if user.role != 'user' %}
+            <div class="col">
+                <label for="assignee">Přiřazený technik</label>
+                <select name="assignee" id="assignee">
+                    <option value="">Všichni</option>
+                    {% for technician in technicians %}
+                    <option value="{{ technician.id }}" {% if selected_assignee == technician.id|stringformat:'s' %}selected{% endif %}>{{ technician.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
         </div>
         <div class="toolbar">
             <button type="submit" class="btn">Filtrovat</button>
@@ -58,6 +73,7 @@
                     <th>Kategorie</th>
                     <th>Autor</th>
                     <th>Datum</th>
+                    <th>Termín SLA</th>
                 </tr>
             </thead>
             <tbody>
@@ -69,12 +85,37 @@
                     <td>{{ ticket.category.name|default:'Bez kategorie' }}</td>
                     <td>{{ ticket.author.username }}</td>
                     <td>{{ ticket.created_at|date:'d.m.Y H:i' }}</td>
+                    <td>
+                        {% if ticket.status != 'resolved' and ticket.status != 'closed' and not ticket.first_response_at and ticket.first_response_due_at %}
+                            {% if ticket.first_response_due_at < now %}
+                                <span class="sla-overdue">Reakce po termínu</span>
+                            {% else %}
+                                Reakce do {{ ticket.first_response_due_at|date:'d.m.Y H:i' }}
+                            {% endif %}
+                        {% elif ticket.status != 'resolved' and ticket.status != 'closed' and ticket.resolution_due_at < now %}
+                            <span class="sla-overdue">Vyřešení po termínu</span>
+                        {% else %}
+                            {{ ticket.resolution_due_at|date:'d.m.Y H:i'|default:'—' }}
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="6" class="empty-row">Žádné požadavky neodpovídají filtru.</td></tr>
+                <tr><td colspan="7" class="empty-row">Žádné požadavky neodpovídají filtru.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </section>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="pagination" aria-label="Stránkování požadavků">
+    {% if page_obj.has_previous %}
+        <a class="btn btn-secondary" href="?q={{ search_query|urlencode }}&status={{ selected_status|urlencode }}&priority={{ selected_priority|urlencode }}&category={{ selected_category|urlencode }}&assignee={{ selected_assignee|urlencode }}&page={{ page_obj.previous_page_number }}">Předchozí</a>
+    {% endif %}
+    <span>Stránka {{ page_obj.number }} z {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+        <a class="btn btn-secondary" href="?q={{ search_query|urlencode }}&status={{ selected_status|urlencode }}&priority={{ selected_priority|urlencode }}&category={{ selected_category|urlencode }}&assignee={{ selected_assignee|urlencode }}&page={{ page_obj.next_page_number }}">Další</a>
+    {% endif %}
+</nav>
+{% endif %}
 {% endblock %}

@@ -1,8 +1,15 @@
+import uuid
+from datetime import timedelta
+from pathlib import Path
+
 from django.conf import settings
 from django.contrib.auth.hashers import identify_hasher, make_password
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
+from django.dispatch import receiver
 from django.db import models, transaction
+from django.db.models.signals import post_delete
 from django.utils import timezone
 
 
@@ -98,6 +105,13 @@ class Ticket(models.Model):
         (PRIORITY_CRITICAL, 'Kritická'),
     ]
 
+    SLA_HOURS = {
+        PRIORITY_LOW: (24, 120),
+        PRIORITY_NORMAL: (8, 72),
+        PRIORITY_HIGH: (4, 24),
+        PRIORITY_CRITICAL: (1, 8),
+    }
+
     STATUS_TRANSITIONS = {
         STATUS_NEW: {STATUS_ACCEPTED},
         STATUS_ACCEPTED: {STATUS_IN_PROGRESS, STATUS_PENDING},
@@ -136,6 +150,9 @@ class Ticket(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    first_response_due_at = models.DateTimeField(null=True, blank=True)
+    resolution_due_at = models.DateTimeField(null=True, blank=True)
+    first_response_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -199,7 +216,16 @@ class Ticket(models.Model):
             update_fields = set(update_fields)
             if 'status' in update_fields:
                 update_fields.add('resolved_at')
-            kwargs['update_fields'] = update_fields
+        if previous is None or (
+            previous.priority != self.priority
+            and (update_fields is None or 'priority' in update_fields)
+        ):
+            created_at = self.created_at or timezone.now()
+            response_hours, resolution_hours = self.SLA_HOURS[self.priority]
+            self.first_response_due_at = created_at + timedelta(hours=response_hours)
+            self.resolution_due_at = created_at + timedelta(hours=resolution_hours)
+            if update_fields is not None:
+                update_fields.update({'first_response_due_at', 'resolution_due_at'})
 
         if self.status == self.STATUS_RESOLVED:
             if previous is None or previous.status != self.STATUS_RESOLVED or self.resolved_at is None:
@@ -216,6 +242,8 @@ class Ticket(models.Model):
             self.resolved_at = None
 
         self.clean()
+        if update_fields is not None:
+            kwargs['update_fields'] = update_fields
         super().save(*args, **kwargs)
 
         if previous is None:
@@ -264,6 +292,7 @@ class Comment(models.Model):
     )
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='comments')
     content = models.TextField()
+    is_internal = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -330,3 +359,105 @@ class TicketHistory(models.Model):
 
     def __str__(self):
         return f'{self.ticket} / {self.field_name}'
+
+
+def validate_attachment_file(uploaded_file):
+    allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.txt'}
+    if uploaded_file.size > 5 * 1024 * 1024:
+        raise ValidationError('Soubor může mít maximálně 5 MB.')
+    if Path(uploaded_file.name).suffix.lower() not in allowed_extensions:
+        raise ValidationError('Povolené jsou soubory PDF, JPG, PNG a TXT.')
+
+
+def ticket_attachment_path(instance, filename):
+    suffix = Path(filename).suffix.lower()
+    return f'ticket-attachments/{instance.ticket_id}/{uuid.uuid4().hex}{suffix}'
+
+
+class TicketAttachment(models.Model):
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='attachments')
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='ticket_attachments',
+    )
+    file = models.FileField(upload_to=ticket_attachment_path, validators=[validate_attachment_file])
+    original_name = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return self.original_name
+
+
+@receiver(post_delete, sender=TicketAttachment)
+def remove_ticket_attachment_file(sender, instance, **kwargs):
+    if instance.file:
+        storage = instance.file.storage
+        name = instance.file.name
+        transaction.on_commit(lambda: storage.delete(name))
+
+
+class Notification(models.Model):
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+    )
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name='notifications')
+    message = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.recipient}: {self.message}'
+
+
+class TicketFeedback(models.Model):
+    ticket = models.OneToOneField(Ticket, on_delete=models.CASCADE, related_name='feedback')
+    rating = models.PositiveSmallIntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    comment = models.TextField(blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1, rating__lte=5),
+                name='helpdesk_feedback_rating_valid',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.ticket}: {self.rating}/5'
+
+
+class KnowledgeArticle(models.Model):
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=220, unique=True)
+    content = models.TextField()
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='knowledge_articles',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='knowledge_articles',
+    )
+    is_published = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['title']
+
+    def __str__(self):
+        return self.title

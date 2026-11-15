@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ article.title }} | Znalostní báze{% endblock %}
+
+{% block content %}
+<section class="page-header">
+    <div>
+        <p class="eyebrow">Znalostní báze{% if article.category %} · {{ article.category.name }}{% endif %}</p>
+        <h1>{{ article.title }}</h1>
+    </div>
+    <a href="{% url 'knowledge_base' %}" class="btn btn-secondary">Zpět na články</a>
+</section>
+
+<section class="panel article-content">
+    {{ article.content|linebreaks }}
+</section>
+{% endblock %}

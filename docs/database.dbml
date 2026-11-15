@@ -35,6 +35,9 @@ Table helpdesk_ticket {
   created_at datetime [not null]
   updated_at datetime [not null]
   resolved_at datetime [note: 'Set on resolution; retained on close and cleared on reopen']
+  first_response_due_at datetime
+  resolution_due_at datetime
+  first_response_at datetime [note: 'Set on the first public response by a technician']
 
   Indexes {
     (author_id, created_at) [name: 'ticket_author_created_idx']
@@ -47,6 +50,7 @@ Table helpdesk_comment {
   ticket_id bigint [not null]
   author_id bigint [not null, note: 'Protected from physical user deletion']
   content text [not null]
+  is_internal boolean [not null, default: false, note: 'Visible only to technicians and helpdesk admins']
   created_at datetime [not null]
 
   Indexes {
@@ -76,6 +80,44 @@ Table helpdesk_tickethistory {
   }
 }
 
+Table helpdesk_ticketattachment {
+  id bigint [pk, increment]
+  ticket_id bigint [not null]
+  uploaded_by_id bigint [not null]
+  file varchar(100) [not null, note: 'Stored outside the database; served only through an authorized view']
+  original_name varchar(255) [not null]
+  created_at datetime [not null]
+}
+
+Table helpdesk_notification {
+  id bigint [pk, increment]
+  recipient_id bigint [not null]
+  ticket_id bigint [not null]
+  message varchar(255) [not null]
+  created_at datetime [not null]
+  read_at datetime
+}
+
+Table helpdesk_ticketfeedback {
+  id bigint [pk, increment]
+  ticket_id bigint [not null, unique]
+  rating smallint [not null, note: '1..5']
+  comment text [not null]
+  submitted_at datetime [not null]
+}
+
+Table helpdesk_knowledgearticle {
+  id bigint [pk, increment]
+  title varchar(200) [not null]
+  slug varchar(220) [not null, unique]
+  content text [not null]
+  category_id bigint
+  created_by_id bigint [not null]
+  is_published boolean [not null, default: false]
+  created_at datetime [not null]
+  updated_at datetime [not null]
+}
+
 Ref: helpdesk_ticket.author_id > helpdesk_user.id
 Ref: helpdesk_ticket.assignee_id > helpdesk_user.id
 Ref: helpdesk_ticket.updated_by_id > helpdesk_user.id
@@ -86,3 +128,10 @@ Ref: helpdesk_ticketsolution.ticket_id - helpdesk_ticket.id
 Ref: helpdesk_ticketsolution.technician_id > helpdesk_user.id
 Ref: helpdesk_tickethistory.ticket_id > helpdesk_ticket.id
 Ref: helpdesk_tickethistory.changed_by_id > helpdesk_user.id
+Ref: helpdesk_ticketattachment.ticket_id > helpdesk_ticket.id
+Ref: helpdesk_ticketattachment.uploaded_by_id > helpdesk_user.id
+Ref: helpdesk_notification.recipient_id > helpdesk_user.id
+Ref: helpdesk_notification.ticket_id > helpdesk_ticket.id
+Ref: helpdesk_ticketfeedback.ticket_id - helpdesk_ticket.id
+Ref: helpdesk_knowledgearticle.category_id > helpdesk_category.id
+Ref: helpdesk_knowledgearticle.created_by_id > helpdesk_user.id

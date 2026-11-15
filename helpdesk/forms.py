@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 
-from .models import Comment, Ticket, User
+from .models import Comment, Ticket, TicketAttachment, TicketFeedback, User
 
 
 class RegisterForm(UserCreationForm):
@@ -31,9 +31,24 @@ class TicketForm(forms.ModelForm):
 class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment
-        fields = ('content',)
+        fields = ('content', 'is_internal')
         labels = {'content': 'Komentář'}
         widgets = {'content': forms.Textarea(attrs={'rows': 3})}
+
+
+class TicketAttachmentForm(forms.ModelForm):
+    class Meta:
+        model = TicketAttachment
+        fields = ('file',)
+        labels = {'file': 'Soubor'}
+
+
+class TicketFeedbackForm(forms.ModelForm):
+    class Meta:
+        model = TicketFeedback
+        fields = ('rating', 'comment')
+        labels = {'rating': 'Hodnocení', 'comment': 'Komentář'}
+        widgets = {'comment': forms.Textarea(attrs={'rows': 3})}
 
 
 class TicketStatusForm(forms.ModelForm):

@@ -20,11 +20,22 @@
         <span>Kategorie: {{ ticket.category.name|default:'Bez kategorie' }}</span>
         <span>Vytvořeno: {{ ticket.created_at|date:'d.m.Y H:i' }}</span>
         <span>Přiřazený technik: {{ ticket.assignee.username|default:'Není přiřazen' }}</span>
+        <span>První reakce do: {{ ticket.first_response_due_at|date:'d.m.Y H:i'|default:'—' }}</span>
+        <span>Vyřešení do: {{ ticket.resolution_due_at|date:'d.m.Y H:i'|default:'—' }}</span>
+        {% if ticket.first_response_at %}<span>První reakce: {{ ticket.first_response_at|date:'d.m.Y H:i' }}</span>{% endif %}
     </div>
     <div class="ticket-description">
         <p>{{ ticket.description }}</p>
     </div>
 </div>
+
+{% if ticket.solution %}
+<div class="panel">
+    <h3>Řešení</h3>
+    <p class="ticket-description">{{ ticket.solution.content|linebreaksbr }}</p>
+    <p class="muted">Zapsal {{ ticket.solution.technician.username }} · {{ ticket.solution.created_at|date:'d.m.Y H:i' }}</p>
+</div>
+{% endif %}
 
 {% if can_manage_ticket %}
     <div class="panel">
@@ -67,7 +78,7 @@
     <h3>Komentáře</h3>
     {% for comment in comments %}
         <div class="history-item">
-            <strong>{{ comment.author.username }}</strong>
+            <strong>{{ comment.author.username }}{% if comment.is_internal %} · Interní poznámka{% endif %}</strong>
             <div class="muted">{{ comment.created_at|date:'d.m.Y H:i' }}</div>
             <p>{{ comment.content }}</p>
         </div>
@@ -85,7 +96,57 @@
                 <div class="form-error">{{ comment_form.content.errors|join:', ' }}</div>
             {% endif %}
         </div>
+        {% if can_manage_ticket %}
+            <label class="checkbox-field">{{ comment_form.is_internal }} Interní poznámka (uživatel ji neuvidí)</label>
+        {% endif %}
         <button type="submit" name="comment_submit" class="btn">Přidat komentář</button>
     </form>
 </div>
+
+<div class="panel">
+    <h3>Přílohy</h3>
+    {% for attachment in attachments %}
+        <div class="history-item">
+            <a href="{% url 'attachment_download' attachment.pk %}">{{ attachment.original_name }}</a>
+            <div class="muted">{{ attachment.uploaded_by.username }} · {{ attachment.created_at|date:'d.m.Y H:i' }}</div>
+        </div>
+    {% empty %}
+        <p class="muted">Zatím nejsou přiloženy žádné soubory.</p>
+    {% endfor %}
+    <form method="post" enctype="multipart/form-data" class="auth-form">
+        {% csrf_token %}
+        {{ attachment_form.non_field_errors }}
+        <div class="field">
+            <label for="{{ attachment_form.file.id_for_label }}">{{ attachment_form.file.label }}</label>
+            {{ attachment_form.file }}
+            <div class="help-text">PDF, JPG, PNG nebo TXT; maximálně 5 MB.</div>
+            {% if attachment_form.file.errors %}<div class="form-error">{{ attachment_form.file.errors|join:', ' }}</div>{% endif %}
+        </div>
+        <button type="submit" name="attachment_submit" class="btn">Nahrát přílohu</button>
+    </form>
+</div>
+
+{% if feedback %}
+<div class="panel">
+    <h3>Hodnocení řešení</h3>
+    <p><strong>{{ feedback.rating }}/5</strong>{% if feedback.comment %} · {{ feedback.comment }}{% endif %}</p>
+    <p class="muted">{{ feedback.submitted_at|date:'d.m.Y H:i' }}</p>
+</div>
+{% elif can_submit_feedback %}
+<div class="panel">
+    <h3>Ohodnotit řešení</h3>
+    <form method="post" class="auth-form">
+        {% csrf_token %}
+        {{ feedback_form.non_field_errors }}
+        {% for field in feedback_form %}
+            <div class="field">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<div class="form-error">{{ field.errors|join:', ' }}</div>{% endif %}
+            </div>
+        {% endfor %}
+        <button type="submit" name="feedback_submit" class="btn">Odeslat hodnocení</button>
+    </form>
+</div>
+{% endif %}
 {% endblock %}
