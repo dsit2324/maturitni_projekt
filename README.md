@@ -1,6 +1,6 @@
 # IT Helpdesk
 
-Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní práce oboru Informační technologie a používá Django, Django REST Framework a PostgreSQL.
+Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní práce oboru Informační technologie a používá Django a Django REST Framework. Pro lokální spuštění bez Dockeru používá SQLite; Docker Compose používá PostgreSQL.
 
 ## Funkce
 
@@ -50,10 +50,12 @@ docker compose down --volumes
 ```
 
 Docker konfigurace je určena pro lokální vývoj. Django development server nepoužívejte pro veřejné produkční nasazení.
+Před nasazením nastavte dlouhý náhodný `SECRET_KEY`, `DEBUG=false` a `ALLOWED_HOSTS` s povolenými názvy domén.
+Pro HTTPS lze zapnout `SECURE_SSL_REDIRECT=true`, `SESSION_COOKIE_SECURE=true`, `CSRF_COOKIE_SECURE=true` a volitelně HSTS přes `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS` a `SECURE_HSTS_PRELOAD`. Původní adresy HTTPS proxy nebo reverzní proxy lze uvést v `CSRF_TRUSTED_ORIGINS` oddělené čárkou.
 
 ## Spuštění bez Dockeru
 
-Je potřeba Python 3.12 nebo novější a dostupný PostgreSQL server. Výchozí připojení očekává databázi `helpdesk`, uživatele `helpdesk`, heslo `helpdesk_dev` a server na `localhost:5432`. Hodnoty lze změnit proměnnými prostředí `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` a `POSTGRES_PORT`.
+Je potřeba Python 3.12 nebo novější. Ve výchozím nastavení se data ukládají do souboru `db.sqlite3` a PostgreSQL není potřeba. Pro použití PostgreSQL nastavte `USE_POSTGRES=1` nebo proměnnou `POSTGRES_HOST`; výchozí připojení pak očekává databázi `helpdesk`, uživatele `helpdesk`, heslo `helpdesk_dev` a server na `localhost:5432`. Hodnoty lze změnit proměnnými prostředí `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` a `POSTGRES_PORT`.
 
 ```bash
 python -m venv .venv
@@ -79,7 +81,7 @@ Administrace Django je dostupná na `/admin/`. Články znalostní báze a zázn
 
 Přílohy jsou omezené na 5 MB a typy PDF, JPG, PNG a TXT. V Docker Compose se soubory uchovávají v pojmenovaném svazku `helpdesk_media`.
 
-Úpravy přes API odpovídají rolím: běžný uživatel může vytvářet požadavky, ale nemůže měnit jejich stav ani je mazat; mazání je vyhrazené administrátorovi.
+Úpravy přes API odpovídají rolím: běžný uživatel může vytvářet požadavky s normální prioritou, ale nemůže měnit jejich stav, prioritu ani je mazat; mazání je vyhrazené administrátorovi.
 
 ## Role a případy užití
 

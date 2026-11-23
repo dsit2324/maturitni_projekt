@@ -20,6 +20,12 @@ class RegisterForm(UserCreationForm):
 
 
 class TicketForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user is not None and user.role == User.ROLE_USER:
+            self.fields.pop('priority')
+
     class Meta:
         model = Ticket
         fields = ('title', 'description', 'category', 'priority')
@@ -54,7 +60,10 @@ class TicketFeedbackForm(forms.ModelForm):
 class TicketStatusForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['assignee'].queryset = User.objects.filter(role=User.ROLE_TECHNICIAN)
+        self.fields['assignee'].queryset = User.objects.filter(
+            role__in=(User.ROLE_TECHNICIAN, User.ROLE_ADMIN),
+            is_active=True,
+        )
 
     class Meta:
         model = Ticket

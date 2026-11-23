@@ -27,7 +27,7 @@ Table helpdesk_ticket {
   title varchar(200) [not null]
   description text [not null]
   author_id bigint [not null, note: 'Protected from physical user deletion']
-  assignee_id bigint [note: 'Validated in Django: must refer to a technician']
+  assignee_id bigint [note: 'Validated in Django: active technician or helpdesk admin']
   updated_by_id bigint
   category_id bigint
   status varchar(20) [not null, note: 'new | accepted | in_progress | pending | resolved | closed']

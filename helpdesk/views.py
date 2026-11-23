@@ -171,7 +171,7 @@ def ticket_list(request):
 @login_required
 def create_ticket(request):
     if request.method == 'POST':
-        form = TicketForm(request.POST)
+        form = TicketForm(request.POST, user=request.user)
         if form.is_valid():
             ticket = form.save(commit=False)
             ticket.author = request.user
@@ -181,7 +181,7 @@ def create_ticket(request):
             messages.success(request, 'Požadavek byl vytvořen.')
             return redirect('ticket_detail', pk=ticket.pk)
     else:
-        form = TicketForm()
+        form = TicketForm(user=request.user)
 
     return render(request, 'ticket_form.html', {'form': form, 'title': 'Nový požadavek'})
 

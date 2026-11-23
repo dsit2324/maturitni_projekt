@@ -11,7 +11,10 @@ class TicketSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(source='category', queryset=Category.objects.all(), write_only=True, required=False)
     assignee_id = serializers.PrimaryKeyRelatedField(
         source='assignee',
-        queryset=User.objects.filter(role=User.ROLE_TECHNICIAN),
+        queryset=User.objects.filter(
+            role__in=(User.ROLE_TECHNICIAN, User.ROLE_ADMIN),
+            is_active=True,
+        ),
         write_only=True,
         required=False,
         allow_null=True,

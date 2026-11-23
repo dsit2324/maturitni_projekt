@@ -125,7 +125,7 @@ class HelpdeskModelTests(TestCase):
             TicketHistory.objects.filter(ticket=ticket, field_name='resolved_at').exists()
         )
 
-    def test_ticket_must_be_assigned_to_a_technician(self):
+    def test_ticket_must_be_assigned_to_a_technician_or_admin(self):
         author = User.objects.create_user(username='autor', password='heslo123')
         ordinary_user = User.objects.create_user(username='bezrole', password='heslo123')
 
@@ -136,6 +136,27 @@ class HelpdeskModelTests(TestCase):
                 author=author,
                 assignee=ordinary_user,
             )
+
+    def test_ticket_can_be_assigned_to_admin_but_not_inactive_technician(self):
+        author = User.objects.create_user(username='autor', password='heslo123')
+        admin = User.objects.create_user(
+            username='administrator',
+            password='heslo123',
+            role=User.ROLE_ADMIN,
+        )
+        ticket = Ticket.objects.create(
+            title='Testovací požadavek',
+            description='Popis požadavku',
+            author=author,
+            assignee=admin,
+        )
+        self.assertEqual(ticket.assignee, admin)
+
+        admin.is_active = False
+        admin.save(update_fields=['is_active'])
+        with self.assertRaises(ValidationError):
+            ticket.assignee = admin
+            ticket.save()
 
     def test_assigned_technician_cannot_be_demoted_before_reassignment(self):
         author = User.objects.create_user(username='autor', password='heslo123')
@@ -343,6 +364,22 @@ class RoleAccessTests(TestCase):
         self.assertEqual(created_ticket.status, Ticket.STATUS_NEW)
         self.assertEqual(created_ticket.priority, Ticket.PRIORITY_NORMAL)
         self.assertIsNone(created_ticket.assignee)
+
+    def test_regular_user_cannot_choose_ticket_priority_in_web_form(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse('create_ticket'),
+            {
+                'title': 'Požadavek s nepovolenou prioritou',
+                'description': 'Prioritu určuje helpdesk.',
+                'priority': Ticket.PRIORITY_CRITICAL,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        ticket = Ticket.objects.get(title='Požadavek s nepovolenou prioritou')
+        self.assertEqual(ticket.priority, Ticket.PRIORITY_NORMAL)
 
     def test_only_technician_or_admin_can_change_ticket_status(self):
         self.client.force_login(self.user)

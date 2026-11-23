@@ -21,14 +21,37 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-_jnh(45!%1-dpjyta7*vdvowu84pxr&5udhw62*y9!m_w7l#56'
+SECRET_KEY = os.environ.get(
+    'SECRET_KEY',
+    'django-insecure-local-development-only-change-before-deployment',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'true').lower() in {'1', 'true', 'yes'}
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
 if os.environ.get('CODESPACES') == 'true':
     ALLOWED_HOSTS.append('.app.github.dev')
+ALLOWED_HOSTS.extend(
+    host.strip()
+    for host in os.environ.get('ALLOWED_HOSTS', '').split(',')
+    if host.strip()
+)
+
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'false').lower() in {'1', 'true', 'yes'}
+SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() in {'1', 'true', 'yes'}
+CSRF_COOKIE_SECURE = os.environ.get('CSRF_COOKIE_SECURE', 'false').lower() in {'1', 'true', 'yes'}
+SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get(
+    'SECURE_HSTS_INCLUDE_SUBDOMAINS',
+    'false',
+).lower() in {'1', 'true', 'yes'}
+SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'false').lower() in {'1', 'true', 'yes'}
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 
 # Application definition

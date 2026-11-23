@@ -80,7 +80,7 @@
         <div class="history-item">
             <strong>{{ comment.author.username }}{% if comment.is_internal %} · Interní poznámka{% endif %}</strong>
             <div class="muted">{{ comment.created_at|date:'d.m.Y H:i' }}</div>
-            <p>{{ comment.content }}</p>
+            <p>{{ comment.content|linebreaksbr }}</p>
         </div>
     {% empty %}
         <p class="muted">Žádné komentáře.</p>

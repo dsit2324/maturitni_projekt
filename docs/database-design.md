@@ -23,7 +23,7 @@ součástí aplikačního diagramu.
 ## Kardinality
 
 - Uživatel vytvoří `0..N` požadavků; každý požadavek má právě jednoho autora.
-- Technik může mít přiřazeno `0..N` požadavků; požadavek může být nepřiřazený nebo mít jednoho technika.
+- Aktivní technik nebo administrátor helpdesku může mít přiřazeno `0..N` požadavků; požadavek může být nepřiřazený nebo mít jednoho takového řešitele.
 - Kategorie může obsahovat `0..N` požadavků; každý požadavek může mít nejvýše jednu kategorii.
 - Požadavek má `0..N` komentářů a `0..N` záznamů historie.
 - Požadavek má `0..1` řešení. Vztah 1:1 je záměrný: model uchovává jedno aktuální řešení, nikoliv všechny historické pokusy. Opětovné otevření požadavku existující řešení nesmaže; při dalším vyřešení se upraví tento záznam.
@@ -60,10 +60,11 @@ referenční integritu cizích klíčů a povolené hodnoty pro role, stavy, pri
 a názvy sledovaných polí historie. Kontroluje také, že `resolved_at` není
 starší než `created_at`.
 
-**Aplikační logika** dále kontroluje povolené přechody stavů a to, že přiřazený
-uživatel má roli technika. Tyto kontroly probíhají v modelu a jsou dostupné
-formulářům i API. Roli technika nelze změnit, dokud má uživatel přiřazené
-požadavky; nejdřív je nutné je přeřadit. Přímý zápis SQL nebo
+**Aplikační logika** dále kontroluje povolené přechody stavů a to, že
+přiřazený uživatel je aktivní technik nebo administrátor helpdesku. Tyto
+kontroly probíhají v modelu a jsou dostupné formulářům i API. Uživateli nelze
+odebrat roli technika nebo administrátora, dokud má přiřazené požadavky;
+nejdřív je nutné je přeřadit. Přímý zápis SQL nebo
 `QuerySet.update()` obchází validaci modelu; databázové omezení proto zůstává
 důležité pro pravidla, která lze vyjádřit jako `CHECK` nebo cizí klíč.
 

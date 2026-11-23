@@ -46,7 +46,7 @@ class User(AbstractUser):
         super().clean()
         if (
             self.pk
-            and self.role != self.ROLE_TECHNICIAN
+            and self.role not in {self.ROLE_TECHNICIAN, self.ROLE_ADMIN}
             and Ticket.objects.filter(assignee_id=self.pk).exists()
         ):
             raise ValidationError({'role': 'Před změnou role je nutné přeřadit přiřazené požadavky.'})
@@ -198,9 +198,10 @@ class Ticket(models.Model):
 
         if self.assignee_id and not User.objects.filter(
             pk=self.assignee_id,
-            role=User.ROLE_TECHNICIAN,
+            role__in=(User.ROLE_TECHNICIAN, User.ROLE_ADMIN),
+            is_active=True,
         ).exists():
-            raise ValidationError({'assignee': 'Požadavek lze přiřadit pouze technikovi.'})
+            raise ValidationError({'assignee': 'Požadavek lze přiřadit pouze aktivnímu technikovi nebo administrátorovi.'})
 
         if self.resolved_at and self.created_at and self.resolved_at < self.created_at:
             raise ValidationError({'resolved_at': 'Čas vyřešení nesmí předcházet vytvoření požadavku.'})
