@@ -32,7 +32,7 @@ Webová aplikace pro evidenci a řešení IT požadavků. V projektu jsou odděl
 - SLA stanovuje termín první reakce a vyřešení podle priority; dashboard upozorňuje na překročené termíny. Časy se počítají v kalendářních hodinách a při čekání se zatím nepozastavují.
 - Uživatelé i technici dostávají aplikační upozornění a e-mail při důležitých událostech. Ve výchozím lokálním nastavení se e-maily vypisují do konzole; SMTP lze nastavit proměnnými prostředí `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` a `SITE_URL`.
 - Uživatel může ohodnotit vyřešený požadavek. Znalostní bázi lze spravovat v administraci Django; uživatelé vidí pouze publikované články.
-- Seznam požadavků podporuje vyhledávání podle názvu, popisu nebo čísla, filtrování a stránkování.
+- Seznam požadavků podporuje vyhledávání podle názvu, popisu nebo čísla, filtrování a stránkování. Tickety se řadí od kritické po nízkou prioritu; uvnitř stejné priority jsou nejnovější nahoře. Stejné pořadí používá i dashboard.
 - Záznam řešení lze spravovat v administraci Django.
 - Stav požadavku prochází definovaným životním cyklem; vyřešený nebo uzavřený požadavek lze znovu otevřít. Uživatelské účty s navázanými požadavky se deaktivují místo fyzického mazání.
 - Přehled požadavků a REST API.
@@ -112,6 +112,23 @@ python manage.py runserver
 Na Windows aktivujte prostředí příkazem `.venv\Scripts\activate`. Aplikace bude dostupná na <http://127.0.0.1:8000/>.
 
 Při spuštění v jiném prostředí nezapomeňte provést `python manage.py migrate`, aby se vytvořilo aktuální databázové schéma.
+
+## Ukázková data
+
+Pro vytvoření použitelných demo uživatelů, ticketů, komentářů, znalostní báze a notifikací spusťte:
+
+```bash
+python manage.py seed_demo
+```
+
+Příkaz je idempotentní, při opakovaném spuštění data neduplikuje. Nové demo účty používají heslo `demo1234`:
+
+| Uživatelské jméno | Role |
+| --- | --- |
+| `jana.novakova` | Uživatel |
+| `technik.sitar` | Technik, síť, software a bezpečnost |
+| `technik.hardware` | Technik, hardware a tiskárny |
+| `admin` | Administrátor |
 
 ## REST API
 

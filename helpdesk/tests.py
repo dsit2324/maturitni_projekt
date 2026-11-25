@@ -575,6 +575,26 @@ class RoleAccessTests(TestCase):
         by_number = self.client.get(reverse('ticket_list'), {'q': str(self.ticket.pk)})
         self.assertEqual(list(by_number.context['tickets']), [self.ticket])
 
+    def test_ticket_list_sorts_by_priority_before_created_at(self):
+        low = Ticket.objects.create(
+            title='Nízká priorita',
+            description='Nový, ale méně důležitý požadavek.',
+            author=self.user,
+            priority=Ticket.PRIORITY_LOW,
+        )
+        critical = Ticket.objects.create(
+            title='Kritická priorita',
+            description='Starší, ale nejdůležitější požadavek.',
+            author=self.user,
+            priority=Ticket.PRIORITY_CRITICAL,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('ticket_list'))
+        titles = [ticket.title for ticket in response.context['tickets']]
+
+        self.assertLess(titles.index(critical.title), titles.index(low.title))
+
     def test_attachment_upload_and_download_are_ticket_authorized(self):
         with tempfile.TemporaryDirectory() as media_dir, override_settings(MEDIA_ROOT=media_dir):
             self.client.force_login(self.user)

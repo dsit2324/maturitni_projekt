@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, When
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -36,6 +36,19 @@ from .notifications import notify_technicians, notify_user
 from .serializers import TicketSerializer
 
 
+def priority_ordered(queryset):
+    return queryset.annotate(
+        priority_rank=Case(
+            When(priority=Ticket.PRIORITY_CRITICAL, then=1),
+            When(priority=Ticket.PRIORITY_HIGH, then=2),
+            When(priority=Ticket.PRIORITY_NORMAL, then=3),
+            When(priority=Ticket.PRIORITY_LOW, then=4),
+            default=5,
+            output_field=IntegerField(),
+        )
+    ).order_by('priority_rank', '-created_at')
+
+
 @login_required
 def dashboard(request):
     queryset = Ticket.objects.select_related('author', 'assignee', 'category')
@@ -50,7 +63,7 @@ def dashboard(request):
     resolved = queryset.filter(status=Ticket.STATUS_RESOLVED).count()
     closed = queryset.filter(status=Ticket.STATUS_CLOSED).count()
     critical = queryset.filter(priority=Ticket.PRIORITY_CRITICAL).count()
-    recent = queryset.order_by('-created_at')[:5]
+    recent = priority_ordered(queryset)[:5]
     now = timezone.now()
     overdue = queryset.exclude(
         status__in=(Ticket.STATUS_RESOLVED, Ticket.STATUS_CLOSED)
@@ -147,7 +160,7 @@ def ticket_list(request):
         queryset = queryset.filter(assignee_id=request.GET['assignee'])
 
     category_choices = Category.objects.all()
-    page_obj = Paginator(queryset.order_by('-created_at'), 20).get_page(request.GET.get('page'))
+    page_obj = Paginator(priority_ordered(queryset), 20).get_page(request.GET.get('page'))
     context = {
         'tickets': page_obj.object_list,
         'page_obj': page_obj,
