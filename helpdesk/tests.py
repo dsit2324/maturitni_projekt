@@ -27,6 +27,79 @@ class HelpdeskModelTests(TestCase):
         user = User.objects.create_user(username='testuser', password='heslo123')
         self.assertEqual(user.role, User.ROLE_USER)
 
+    def test_ticket_is_assigned_to_matching_category_specialist(self):
+        network, _ = Category.objects.get_or_create(name='Sítě')
+        software, _ = Category.objects.get_or_create(name='Software')
+        network_tech = User.objects.create_user(
+            username='sitak', password='heslo123', role=User.ROLE_TECHNICIAN
+        )
+        software_tech = User.objects.create_user(
+            username='programator', password='heslo123', role=User.ROLE_TECHNICIAN
+        )
+        network_tech.specialties.add(network)
+        software_tech.specialties.add(software)
+        author = User.objects.create_user(username='autor', password='heslo123')
+
+        ticket = Ticket.objects.create(
+            title='Síťová tiskárna není dostupná',
+            description='Popis problému',
+            author=author,
+            category=network,
+        )
+
+        self.assertEqual(ticket.assignee, network_tech)
+
+    def test_category_without_specialist_or_generalist_is_not_assigned_to_other_specialist(self):
+        network, _ = Category.objects.get_or_create(name='Sítě')
+        software, _ = Category.objects.get_or_create(name='Software')
+        software_tech = User.objects.create_user(
+            username='software_technik', password='heslo123', role=User.ROLE_TECHNICIAN
+        )
+        software_tech.specialties.add(software)
+        author = User.objects.create_user(username='autor', password='heslo123')
+
+        ticket = Ticket.objects.create(
+            title='Síťový požadavek bez specialisty',
+            description='Popis',
+            author=author,
+            category=network,
+        )
+
+        self.assertIsNone(ticket.assignee)
+
+    def test_ticket_is_assigned_to_less_loaded_matching_specialist(self):
+        hardware, _ = Category.objects.get_or_create(name='Hardware')
+        busy_tech = User.objects.create_user(
+            username='technik_a', password='heslo123', role=User.ROLE_TECHNICIAN
+        )
+        free_tech = User.objects.create_user(
+            username='technik_b', password='heslo123', role=User.ROLE_TECHNICIAN
+        )
+        busy_tech.specialties.add(hardware)
+        free_tech.specialties.add(hardware)
+        author = User.objects.create_user(username='autor', password='heslo123')
+
+        busy_ticket = Ticket.objects.create(
+            title='Již rozpracovaný požadavek',
+            description='Popis',
+            author=author,
+            category=hardware,
+            assignee=busy_tech,
+        )
+        busy_ticket.status = Ticket.STATUS_ACCEPTED
+        busy_ticket.save()
+        busy_ticket.status = Ticket.STATUS_IN_PROGRESS
+        busy_ticket.save()
+
+        ticket = Ticket.objects.create(
+            title='Nový hardwarový požadavek',
+            description='Popis',
+            author=author,
+            category=hardware,
+        )
+
+        self.assertEqual(ticket.assignee, free_tech)
+
     def test_application_role_is_independent_from_django_staff_flags(self):
         admin = User.objects.create_user(username='appadmin', password='heslo123', role=User.ROLE_ADMIN)
         self.assertFalse(admin.is_staff)
@@ -363,7 +436,7 @@ class RoleAccessTests(TestCase):
         self.assertEqual(created_ticket.author, self.user)
         self.assertEqual(created_ticket.status, Ticket.STATUS_NEW)
         self.assertEqual(created_ticket.priority, Ticket.PRIORITY_NORMAL)
-        self.assertIsNone(created_ticket.assignee)
+        self.assertEqual(created_ticket.assignee, self.technician)
 
     def test_regular_user_cannot_choose_ticket_priority_in_web_form(self):
         self.client.force_login(self.user)

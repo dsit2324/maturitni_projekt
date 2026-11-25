@@ -23,8 +23,25 @@ def notify_user(recipient, ticket, message, *, actor=None):
 
 
 def notify_technicians(ticket, message, *, actor=None):
-    for technician in User.objects.filter(
-        role__in=(User.ROLE_TECHNICIAN, User.ROLE_ADMIN),
+    technicians = User.objects.filter(
+        role=User.ROLE_TECHNICIAN,
         is_active=True,
-    ):
+    )
+
+    if ticket.category_id:
+        specialists = technicians.filter(specialties=ticket.category)
+        if specialists.exists():
+            technicians = specialists
+        else:
+            generalists = technicians.filter(specialties__isnull=True)
+            if generalists.exists():
+                technicians = generalists
+            else:
+                technicians = technicians.none()
+
+    recipients = technicians | User.objects.filter(
+        role=User.ROLE_ADMIN,
+        is_active=True,
+    )
+    for technician in recipients.distinct():
         notify_user(technician, ticket, message, actor=actor)

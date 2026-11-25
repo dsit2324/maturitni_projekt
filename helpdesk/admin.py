@@ -16,8 +16,9 @@ from .models import (
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
     list_display = ('username', 'email', 'role', 'is_staff')
-    list_filter = ('role', 'is_staff')
+    list_filter = ('role', 'is_staff', 'specialties')
     search_fields = ('username', 'email')
+    filter_horizontal = ('specialties',)
 
 
 @admin.register(Category)

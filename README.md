@@ -1,13 +1,33 @@
+<div align="center">
+
 # IT Helpdesk
 
-Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní práce oboru Informační technologie a používá Django a Django REST Framework. Pro lokální spuštění bez Dockeru používá SQLite; Docker Compose používá PostgreSQL.
+**Moderní systém pro evidenci, přiřazování a řešení IT požadavků**
 
-## Funkce
+Maturitní projekt | Django | Django REST Framework | SQLite / PostgreSQL
+
+</div>
+
+Webová aplikace pro evidenci a řešení IT požadavků. V projektu jsou oddělené role uživatelů, techniků a administrátorů, kateg­orie ticketů, SLA, historie změn, notifikace a REST API.
+
+## Obsah
+
+- [Klíčové funkce](#klíčové-funkce)
+- [Automatické přiřazení](#automatické-přiřazení)
+- [Spuštění pomocí Dockeru](#spuštění-pomocí-dockeru)
+- [Spuštění bez Dockeru](#spuštění-bez-dockeru)
+- [REST API](#rest-api)
+- [Role a případy užití](#role-a-případy-užití)
+- [Architektura a diagramy](#architektura-aplikace)
+- [Testy](#testy)
+
+## Klíčové funkce
 
 - Registrace a přihlášení; nově registrované účty mají roli uživatele.
 - Uživatel vidí své požadavky a může přidávat komentáře. Technik vidí všechny požadavky a může měnit jejich stav, prioritu a přiřazení.
 - Administrátor může požadavky spravovat a mazat. Aplikační role jsou oddělené od příznaků `is_staff` a `is_superuser` v Django; přístup do administrace určuje `is_staff`. Role se přidělují v administraci Django a veřejná registrace roli technika ani administrátora nenabízí.
 - Požadavky lze zařadit do kategorií. Při aplikaci migrací se vytvoří kategorie Hardware, Software, Síť a internet, Účty a přístupy, Tiskárny a periferie a Ostatní; další kategorie lze spravovat v administraci Django.
+- Techniky lze v administraci přiřadit k jedné nebo více kategoriím. Nový požadavek se automaticky přiřadí specialistovi dané kategori­e s nejnižším počtem otevřených požadavků. Pokud specialisté ani generalisté nejsou dostupní, přiřazuje se nejvolnější administrátor; jinak požadavek zůstane nepřiřazený.
 - Historie změn, veřejné komentáře a interní poznámky techniků jsou dostupné v detailu požadavku. Přílohy lze stáhnout pouze po ověření přístupu k požadavku.
 - SLA stanovuje termín první reakce a vyřešení podle priority; dashboard upozorňuje na překročené termíny. Časy se počítají v kalendářních hodinách a při čekání se zatím nepozastavují.
 - Uživatelé i technici dostávají aplikační upozornění a e-mail při důležitých událostech. Ve výchozím lokálním nastavení se e-maily vypisují do konzole; SMTP lze nastavit proměnnými prostředí `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `DEFAULT_FROM_EMAIL` a `SITE_URL`.
@@ -16,6 +36,29 @@ Webová aplikace pro evidenci a řešení IT požadavků. Projekt je maturitní 
 - Záznam řešení lze spravovat v administraci Django.
 - Stav požadavku prochází definovaným životním cyklem; vyřešený nebo uzavřený požadavek lze znovu otevřít. Uživatelské účty s navázanými požadavky se deaktivují místo fyzického mazání.
 - Přehled požadavků a REST API.
+
+## Automatické přiřazení
+
+Nový požadavek se přiřazuje automaticky při vytvoření:
+
+```mermaid
+flowchart TD
+    ticket[Nový požadavek] --> category{Má kategorii?}
+    category -->|Ano| specialist[Specialisté odpovídající kategorie]
+    specialist --> available{Je dostupný specialist?}
+    available -->|Ano| least[Aktivní specialisté s počtem otevřených ticketů]
+    least --> assign[Přiřadit nejméně vytíženému specialistovi]
+    available -->|Ne| general[Technik bez specializace]
+    general --> generalAvailable{Je dostupný generalista?}
+    generalAvailable -->|Ano| assignGeneral[Přiřadit nejméně vytíženému generalistovi]
+    generalAvailable -->|Ne| admin[Administrátor]
+    admin --> adminAvailable{Je dostupný administrátor?}
+    adminAvailable -->|Ano| assignAdmin[Přiřadit nejméně vytíženému administrátorovi]
+    adminAvailable -->|Ne| unassigned[Zůstat nepřiřazený]
+    category -->|Ne| general
+```
+
+Otevřenými se rozumí stavy `Nový`, `Přijatý`, `Řeší se` a `Čeká se`. Při více technicích se rozhoduje podle počtu otevřených ticketů, uživatelského jména a ID, aby bylo přiřazení deterministické.
 
 ## Spuštění pomocí Dockeru
 

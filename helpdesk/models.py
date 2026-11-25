@@ -31,6 +31,12 @@ class User(AbstractUser):
     ]
 
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_USER)
+    specialties = models.ManyToManyField(
+        'Category',
+        blank=True,
+        related_name='specialist_technicians',
+        verbose_name='Kategorie specializace',
+    )
 
     objects = HelpdeskUserManager()
 
@@ -179,6 +185,48 @@ class Ticket(models.Model):
     def __str__(self):
         return self.title
 
+    def choose_assignee(self):
+        open_statuses = (
+            self.STATUS_NEW,
+            self.STATUS_ACCEPTED,
+            self.STATUS_IN_PROGRESS,
+            self.STATUS_PENDING,
+        )
+
+        eligible = User.objects.filter(
+            role=User.ROLE_TECHNICIAN,
+            is_active=True,
+        ).annotate(
+            open_ticket_count=models.Count(
+                'assigned_tickets',
+                filter=models.Q(assigned_tickets__status__in=open_statuses),
+            ),
+        )
+
+        if self.category_id:
+            specialists = eligible.filter(specialties=self.category)
+            if specialists.exists():
+                eligible = specialists
+            else:
+                generalists = eligible.filter(specialties__isnull=True)
+                if generalists.exists():
+                    eligible = generalists
+                else:
+                    eligible = eligible.none()
+
+        if not eligible.exists():
+            eligible = User.objects.filter(
+                role=User.ROLE_ADMIN,
+                is_active=True,
+            ).annotate(
+                open_ticket_count=models.Count(
+                    'assigned_tickets',
+                    filter=models.Q(assigned_tickets__status__in=open_statuses),
+                ),
+            )
+
+        return eligible.order_by('open_ticket_count', 'username', 'pk').first()
+
     def validate_status_transition(self, new_status=None):
         requested_status = new_status or self.status
         if self._state.adding or not self.pk:
@@ -212,6 +260,8 @@ class Ticket(models.Model):
     @transaction.atomic
     def save(self, *args, **kwargs):
         previous = Ticket.objects.filter(pk=self.pk).first() if self.pk else None
+        if previous is None and not self.assignee_id:
+            self.assignee = self.choose_assignee()
         update_fields = kwargs.get('update_fields')
         if update_fields is not None:
             update_fields = set(update_fields)
