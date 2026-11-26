@@ -260,3 +260,8 @@ Datový slovník, kardinality, pravidla životního cyklu, mazání a integritn�
 ```bash
 python manage.py test
 ```
+
+```Odkaz na helpdesk
+https://helpdesk-it2324.kube.sspu-opava.cz/
+```
+
